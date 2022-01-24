@@ -1113,6 +1113,10 @@ github.com/stafiprotocol/go-substrate-rpc-client v1.1.3 h1:wtRc1AKjdgvAuy6Uxl/yX
 github.com/stafiprotocol/go-substrate-rpc-client v1.1.3/go.mod h1:P3xucNyw6UjKvCvGg0eiQJhcRyZsUv5a9akxDTLMHFk=
 github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220119152215-ea3af94663f3 h1:2XZhQbCjOuWIkNkIKxdO/GpAZFWhK0FZAodoYb9DVoA=
 github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220119152215-ea3af94663f3/go.mod h1:gz7M64Y1g6YPHpIwx+15WxWeN0tFoCUyJgBnDxst9ss=
+github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220124084142-2793df9c0fb3 h1:hxQJdv6B1whUkrEekvuCgpIpoVQ4wBCCktMatu214dU=
+github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220124084142-2793df9c0fb3/go.mod h1:gz7M64Y1g6YPHpIwx+15WxWeN0tFoCUyJgBnDxst9ss=
+github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220124091438-f9a4f5f4aeae h1:2bPetGB/c7E8xQIc/7FrMAWzRkf1MfVTxOclvqXPT7A=
+github.com/stafiprotocol/rtoken-relay-core v0.0.0-20220124091438-f9a4f5f4aeae/go.mod h1:gz7M64Y1g6YPHpIwx+15WxWeN0tFoCUyJgBnDxst9ss=
 github.com/stafiprotocol/solana-go-sdk v1.0.0/go.mod h1:l17jYuPW1VS1hL5qjlayYsMTrla9wEJHLyGtzFGhmHE=
 github.com/stafiprotocol/stafihub v0.0.0-20220118075320-c95ccf0c0913/go.mod h1:n4OdT7ldGMkw60NmVqZcagELWEAjUEWL7ZfBUlAOj1M=
 github.com/stafiprotocol/stafihub v0.0.0-20220120093145-7ef3e401f505 h1:JBwqV/AZhugIonziRuS674RNEg0LdyLI726ttWxg/Jc=

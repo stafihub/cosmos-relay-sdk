@@ -151,3 +151,7 @@ func (c *Client) Sign(fromName string, toBeSigned []byte) ([]byte, cryptoTypes.P
 func (c *Client) Ctx() client.Context {
 	return c.clientCtx
 }
+
+func (c *Client) GetRpcClient() *rpcClient.Client {
+	return &c.rpcClient
+}

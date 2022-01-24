@@ -50,7 +50,11 @@ func (l *Listener) start() error {
 	if l.router == nil {
 		return fmt.Errorf("must set router with setRouter()")
 	}
-	latestBlk, err := l.conn.client.GetCurrentBlockHeight()
+	poolClient, err := l.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
+	latestBlk, err := poolClient.GetCurrentBlockHeight()
 	if err != nil {
 		return err
 	}
@@ -72,6 +76,10 @@ func (l *Listener) start() error {
 func (l *Listener) pollBlocks() error {
 	var willDealBlock = l.startBlock
 	var retry = BlockRetryLimit
+	poolClient, err := l.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
 	for {
 		select {
 		case <-l.stopChan:
@@ -81,7 +89,7 @@ func (l *Listener) pollBlocks() error {
 				return fmt.Errorf("pollBlocks reach retry limit ,symbol: %s", l.symbol)
 			}
 
-			latestBlk, err := l.conn.client.GetCurrentBlockHeight()
+			latestBlk, err := poolClient.GetCurrentBlockHeight()
 			if err != nil {
 				l.log.Error("Failed to fetch latest blockNumber", "err", err)
 				retry--

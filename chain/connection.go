@@ -1,99 +1,152 @@
 package chain
 
 import (
-	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
+	"math/big"
+	"sync"
 
 	"github.com/ChainSafe/log15"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
-	"github.com/cosmos/cosmos-sdk/types"
+	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
 	"github.com/stafiprotocol/rtoken-relay-core/config"
 	"github.com/stafiprotocol/rtoken-relay-core/core"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
-	stafiHubXRvoteTypes "github.com/stafiprotocol/stafihub/x/rvote/types"
 )
 
 type Connection struct {
-	symbol core.RSymbol
-	client *hubClient.Client
-	log    log15.Logger
+	symbol           core.RSymbol
+	eraSeconds       int64
+	eraFactor        int64
+	poolClients      map[string]*hubClient.Client //map[addressHexStr]subClient
+	log              log15.Logger
+	cachedUnsignedTx map[string]*WrapUnsignedTx //map[hash(unsignedTx)]unsignedTx
+	mtx              sync.RWMutex
+}
+
+type WrapUnsignedTx struct {
+	UnsignedTx []byte
+	Key        string
+	SnapshotId string
+	Era        uint32
+	Bond       *big.Int
+	Unbond     *big.Int
+	Type       core.OriginalTx
 }
 
 func NewConnection(cfg *config.RawChainConfig, log log15.Logger) (*Connection, error) {
-	bts, err := json.Marshal(cfg.Opts)
-	if err != nil {
-		return nil, err
-	}
-	option := ConfigOption{}
-	err = json.Unmarshal(bts, &option)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Printf("Will open cosmos wallet from <%s>. \nPlease ", cfg.KeystorePath)
-	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
-	if err != nil {
-		return nil, err
-	}
-	client, err := hubClient.NewClient(key, option.ChainID, option.Account, option.GasPrice, option.Denom, cfg.Endpoint)
-	if err != nil {
-		return nil, err
-	}
 
-	c := Connection{
-		symbol: core.RSymbol(cfg.Rsymbol),
-		client: client,
-		log:    log,
-	}
-	return &c, nil
+	return nil, nil
 }
 
-func (c *Connection) SubmitProposal(content stafiHubXRvoteTypes.Content) (string, error) {
-	msg, err := stafiHubXRvoteTypes.NewMsgSubmitProposal(c.client.GetFromAddress(), content)
-	if err != nil {
-		return "", err
+func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
+	for _, sub := range c.poolClients {
+		if sub != nil {
+			return sub, nil
+		}
 	}
-
-	if err := msg.ValidateBasic(); err != nil {
-		return "", err
-	}
-	txBts, err := c.client.ConstructAndSignTx(msg)
-	if err != nil {
-		return "", err
-	}
-	return c.client.BroadcastTx(txBts)
+	return nil, errors.New("no subClient")
 }
 
-func (c *Connection) QuerySnapshot(shotId []byte) (*stafiHubXLedgerTypes.QueryGetSnapshotResponse, error) {
-	queryClient := stafiHubXLedgerTypes.NewQueryClient(c.client.Ctx())
-	params := &stafiHubXLedgerTypes.QueryGetSnapshotRequest{
-		ShotId: shotId,
+func (c *Connection) GetPoolClient(poolAddr string) (*hubClient.Client, error) {
+	if sub, exist := c.poolClients[poolAddr]; exist {
+		return sub, nil
 	}
-
-	cc, err := hubClient.Retry(func() (interface{}, error) {
-		return queryClient.GetSnapshot(context.Background(), params)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return cc.(*stafiHubXLedgerTypes.QueryGetSnapshotResponse), nil
+	return nil, errors.New("subClient of this pool not exist")
 }
 
-func (c *Connection) QueryPoolUnbond(denom, pool string, era uint32) (*stafiHubXLedgerTypes.QueryGetPoolUnbondResponse, error) {
-	queryClient := stafiHubXLedgerTypes.NewQueryClient(c.client.Ctx())
-	params := &stafiHubXLedgerTypes.QueryGetPoolUnbondRequest{
-		Denom: denom,
-		Pool:  pool,
-		Era:   era,
+func (pc *Connection) CacheUnsignedTx(key string, tx *WrapUnsignedTx) {
+	pc.mtx.Lock()
+	pc.cachedUnsignedTx[key] = tx
+	pc.mtx.Unlock()
+}
+func (pc *Connection) GetWrappedUnsignedTx(key string) (*WrapUnsignedTx, error) {
+	pc.mtx.RLock()
+	defer pc.mtx.RUnlock()
+	if tx, exist := pc.cachedUnsignedTx[key]; exist {
+		return tx, nil
+	}
+	return nil, errors.New("unsignedTx of this key not exist")
+}
+
+func (pc *Connection) RemoveUnsignedTx(key string) {
+	pc.mtx.Lock()
+	delete(pc.cachedUnsignedTx, key)
+	pc.mtx.Unlock()
+}
+
+func (pc *Connection) CachedUnsignedTxNumber() int {
+	return len(pc.cachedUnsignedTx)
+}
+
+func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
+	targetTimestamp := (int64(era) + pc.eraFactor) * pc.eraSeconds
+	poolClient, err := pc.GetOnePoolClient()
+	if err != nil {
+		return 0, err
+	}
+	blockNumber, timestamp, err := poolClient.GetCurrentBLockAndTimestamp()
+	if err != nil {
+		return 0, err
+	}
+	seconds := timestamp - targetTimestamp
+	if seconds < 0 {
+		return 0, fmt.Errorf("timestamp can not less than targetTimestamp")
 	}
 
-	cc, err := hubClient.Retry(func() (interface{}, error) {
-		return queryClient.GetPoolUnbond(context.Background(), params)
-	})
+	tmpTargetBlock := blockNumber - seconds/7
+
+	block, err := poolClient.QueryBlock(tmpTargetBlock)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	return cc.(*stafiHubXLedgerTypes.QueryGetPoolUnbondResponse), nil
+
+	findDuTime := block.Block.Header.Time.Unix() - targetTimestamp
+
+	if findDuTime == 0 {
+		return block.Block.Height, nil
+	}
+
+	if findDuTime > 7 || findDuTime < -7 {
+		tmpTargetBlock -= findDuTime / 7
+
+		block, err = poolClient.QueryBlock(tmpTargetBlock)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	var afterBlockNumber int64
+	var preBlockNumber int64
+	if block.Block.Header.Time.Unix() > targetTimestamp {
+		afterBlockNumber = block.Block.Height
+
+		for {
+			block, err := poolClient.QueryBlock(afterBlockNumber - 1)
+			if err != nil {
+				return 0, err
+			}
+			if block.Block.Time.Unix() > targetTimestamp {
+				afterBlockNumber = block.Block.Height
+			} else {
+				preBlockNumber = block.Block.Height
+				break
+			}
+		}
+
+	} else {
+		preBlockNumber = block.Block.Height
+		for {
+			block, err := poolClient.QueryBlock(preBlockNumber + 1)
+			if err != nil {
+				return 0, err
+			}
+			if block.Block.Time.Unix() > targetTimestamp {
+				afterBlockNumber = block.Block.Height
+				break
+			} else {
+				preBlockNumber = block.Block.Height
+			}
+		}
+	}
+
+	return afterBlockNumber, nil
 }

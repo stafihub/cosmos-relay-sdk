@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/ChainSafe/log15"
+	"github.com/stafiprotocol/cosmos-relay-sdk/chain"
 	"github.com/stafiprotocol/rtoken-relay-core/config"
 	"github.com/stafiprotocol/rtoken-relay-core/core"
-	"github.com/stafiprotocol/cosmos-relay-sdk/chain"
 )
 
 var (
@@ -34,33 +34,6 @@ func TestNewConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestQuerySnapshot(t *testing.T) {
-	c, err := chain.NewConnection(&cfg, logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	shotId, err := hex.DecodeString("")
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot, err := c.QuerySnapshot(shotId)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(snapshot)
-}
-func TestQueryUnbond(t *testing.T) {
-	c, err := chain.NewConnection(&cfg, logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	unbond, err := c.QueryPoolUnbond("atom", "", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(unbond)
 }
 
 func TestChainInitialize(t *testing.T) {
