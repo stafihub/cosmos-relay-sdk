@@ -1,10 +1,18 @@
 package chain
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/cosmos/cosmos-sdk/types"
+	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/stafiprotocol/rtoken-relay-core/core"
+)
+
+const maxUint32 = ^uint32(0)
+
+var (
+	ErrEventAttributeNumberUnMatch = errors.New("ErrEventAttributeNumberTooFew")
 )
 
 func (l *Listener) processBlockEvents(currentBlock int64) error {
@@ -39,7 +47,14 @@ func (l *Listener) processStringEvents(event types.StringEvent) error {
 		Source:      l.symbol,
 		Destination: l.caredSymbol,
 	}
+	// not support multisend now
 	switch {
+	case event.Type == xBankTypes.EventTypeTransfer:
+		if len(event.Attributes) != 3 {
+			return ErrEventAttributeNumberUnMatch
+		}
+		
+
 	default:
 		return fmt.Errorf("not support event type: %s", event.Type)
 	}

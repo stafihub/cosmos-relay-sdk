@@ -1,7 +1,6 @@
 package chain_test
 
 import (
-	"encoding/hex"
 	"testing"
 
 	"github.com/ChainSafe/log15"

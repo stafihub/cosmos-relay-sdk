@@ -20,6 +20,7 @@ type Listener struct {
 	name        string
 	symbol      core.RSymbol
 	caredSymbol core.RSymbol
+	pools       []string
 	startBlock  uint64
 	blockstore  blockstore.Blockstorer
 	conn        *Connection
@@ -33,6 +34,7 @@ func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs blockst
 	return &Listener{
 		name:       name,
 		symbol:     symbol,
+		pools:      make([]string, 0),
 		startBlock: startBlock,
 		blockstore: bs,
 		conn:       conn,
