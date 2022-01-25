@@ -1,0 +1,23 @@
+{
+  "chains": [
+    {
+      "name": "cosmos-hub",
+      "type": "gaia",
+      "endpoint": "http://127.0.0.1:26657",
+      "rsymbol": "ATOM",
+      "keystorePath": "/Users/tpkeeper/.gaia",
+      "opts": {
+        "blockstorePath": "/Users/tpkeeper/gowork/stafi/rtoken-relay/blockstore",
+        "startBlock": 50,
+        "chainId": "chain-AALfXF",
+        "denom": "fis",
+        "gasPrice": "0.00001fis",
+        "eraSeconds": 100000,
+        "pools": {
+          "pool1": "subkey1",
+          "pool2": "subkey2"
+        }
+      }
+    }
+  ]
+}

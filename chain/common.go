@@ -448,7 +448,7 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	sigs *core.SubmitSignatures, m *core.Message, txHash, txBts []byte) error {
+	sigs *core.EventSignatureEnough, m *core.Message, txHash, txBts []byte) error {
 	retry := BlockRetryLimit
 	txHashHexStr := hex.EncodeToString(txHash)
 	_, err := types.AccAddressFromHex(sigs.Pool)
@@ -461,13 +461,6 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		if retry <= 0 {
 			h.log.Error("checkAndSend broadcast tx reach retry limit",
 				"pool address", sigs.Pool)
-
-			if wrappedUnSignedTx.Type == core.OriginalClaimRewards {
-				h.log.Info("claimRewards failed we still active report")
-
-				h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
-				return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, wrappedUnSignedTx.Bond, wrappedUnSignedTx.Unbond)
-			}
 			break
 		}
 		//check on chain
@@ -498,26 +491,77 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 
 		//inform stafi
 		switch wrappedUnSignedTx.Type {
-		case core.OriginalBond: //bond or unbond
+		case stafiHubXLedgerTypes.TxTypeBond: //bond or unbond
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
-		case core.OriginalClaimRewards:
+		case stafiHubXLedgerTypes.TxTypeClaim: //claim and redelegate
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, wrappedUnSignedTx.Bond, wrappedUnSignedTx.Unbond)
-		case core.OriginalTransfer:
-
+		case stafiHubXLedgerTypes.TxTypeTransfer: //transfer unbond token to user
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
-
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
-		case core.OriginalUpdateValidator: //update validator
-			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
-			return nil
 		default:
 			h.log.Error("checkAndSend failed,unknown unsigned tx type",
 				"pool", sigs.Pool,
 				"type", wrappedUnSignedTx.Type)
 			return nil
 		}
-
 	}
 	return nil
+}
+
+func (h *Handler) sendBondReportMsg(shotIdStr string) error {
+	shotId, err := hex.DecodeString(shotIdStr)
+	if err != nil {
+		return err
+	}
+	m := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonBondReport,
+		Content: core.ProposalBondReport{
+			Denom:  string(h.conn.symbol),
+			ShotId: shotId,
+			Action: stafiHubXLedgerTypes.BothBondUnbond,
+		},
+	}
+
+	return h.router.Send(&m)
+}
+
+func (h *Handler) sendActiveReportMsg(shotIdStr string, staked, unstaked *big.Int) error {
+	shotId, err := hex.DecodeString(shotIdStr)
+	if err != nil {
+		return err
+	}
+	m := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonActiveReport,
+		Content: core.ProposalActiveReport{
+			Denom:    string(h.conn.symbol),
+			ShotId:   shotId,
+			Staked:   types.NewIntFromBigInt(staked),
+			Unstaked: types.NewIntFromBigInt(unstaked),
+		},
+	}
+
+	return h.router.Send(&m)
+}
+
+func (h *Handler) sendTransferReportMsg(shotIdStr string) error {
+	shotId, err := hex.DecodeString(shotIdStr)
+	if err != nil {
+		return err
+	}
+	m := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonTransferReport,
+		Content: core.ProposalTransferReport{
+			Denom:  string(h.conn.symbol),
+			ShotId: shotId,
+		},
+	}
+
+	return h.router.Send(&m)
 }

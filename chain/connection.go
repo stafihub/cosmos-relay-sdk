@@ -1,22 +1,27 @@
 package chain
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"sync"
 
 	"github.com/ChainSafe/log15"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"github.com/cosmos/cosmos-sdk/types"
 	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
 	"github.com/stafiprotocol/rtoken-relay-core/config"
 	"github.com/stafiprotocol/rtoken-relay-core/core"
+	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
 )
 
 type Connection struct {
 	symbol           core.RSymbol
 	eraSeconds       int64
-	eraFactor        int64
-	poolClients      map[string]*hubClient.Client //map[addressHexStr]subClient
+	poolClients      map[string]*hubClient.Client //map[pool address]subClient
+	poolSubKey       map[string]string            // map[pool address]subkey
 	log              log15.Logger
 	cachedUnsignedTx map[string]*WrapUnsignedTx //map[hash(unsignedTx)]unsignedTx
 	mtx              sync.RWMutex
@@ -29,12 +34,49 @@ type WrapUnsignedTx struct {
 	Era        uint32
 	Bond       *big.Int
 	Unbond     *big.Int
-	Type       core.OriginalTx
+	Type       stafiHubXLedgerTypes.OriginalTxType
 }
 
 func NewConnection(cfg *config.RawChainConfig, log log15.Logger) (*Connection, error) {
+	bts, err := json.Marshal(cfg.Opts)
+	if err != nil {
+		return nil, err
+	}
+	option := ConfigOption{}
+	err = json.Unmarshal(bts, &option)
+	if err != nil {
+		return nil, err
+	}
 
-	return nil, nil
+	fmt.Printf("Will open cosmos wallet from <%s>. \nPlease ", cfg.KeystorePath)
+	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
+	if err != nil {
+		return nil, err
+	}
+	poolClients := make(map[string]*hubClient.Client)
+	poolSubkey := make(map[string]string)
+
+	for poolName, subKeyName := range option.Pools {
+		poolInfo, err := key.Key(poolName)
+		if err != nil {
+			return nil, err
+		}
+		poolClient, err := hubClient.NewClient(key, option.ChainID, poolName, option.GasPrice, option.Denom, cfg.Endpoint)
+		if err != nil {
+			return nil, err
+		}
+		poolClients[poolInfo.GetAddress().String()] = poolClient
+		poolSubkey[poolInfo.GetAddress().String()] = subKeyName
+	}
+
+	c := Connection{
+		symbol:           core.RSymbol(cfg.Rsymbol),
+		eraSeconds:       int64(option.EraSeconds),
+		poolClients:      poolClients,
+		log:              log,
+		cachedUnsignedTx: make(map[string]*WrapUnsignedTx),
+	}
+	return &c, nil
 }
 
 func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
@@ -78,7 +120,7 @@ func (pc *Connection) CachedUnsignedTxNumber() int {
 }
 
 func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
-	targetTimestamp := (int64(era) + pc.eraFactor) * pc.eraSeconds
+	targetTimestamp := int64(era) * pc.eraSeconds
 	poolClient, err := pc.GetOnePoolClient()
 	if err != nil {
 		return 0, err
@@ -118,7 +160,6 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	var preBlockNumber int64
 	if block.Block.Header.Time.Unix() > targetTimestamp {
 		afterBlockNumber = block.Block.Height
-
 		for {
 			block, err := poolClient.QueryBlock(afterBlockNumber - 1)
 			if err != nil {
