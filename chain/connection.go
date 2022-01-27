@@ -168,7 +168,6 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 			if block.Block.Time.Unix() > targetTimestamp {
 				afterBlockNumber = block.Block.Height
 			} else {
-				preBlockNumber = block.Block.Height
 				break
 			}
 		}

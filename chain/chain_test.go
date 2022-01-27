@@ -23,7 +23,6 @@ var (
 			ChainID:        "testId",
 			Denom:          "stake",
 			GasPrice:       "0.0001stake",
-			Account:        "my-account",
 		},
 	}
 )
