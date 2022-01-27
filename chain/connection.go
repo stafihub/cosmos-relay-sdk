@@ -1,11 +1,11 @@
 package chain
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/ChainSafe/log15"
@@ -37,17 +37,7 @@ type WrapUnsignedTx struct {
 	Type       stafiHubXLedgerTypes.OriginalTxType
 }
 
-func NewConnection(cfg *config.RawChainConfig, log log15.Logger) (*Connection, error) {
-	bts, err := json.Marshal(cfg.Opts)
-	if err != nil {
-		return nil, err
-	}
-	option := ConfigOption{}
-	err = json.Unmarshal(bts, &option)
-	if err != nil {
-		return nil, err
-	}
-
+func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Logger) (*Connection, error) {
 	fmt.Printf("Will open cosmos wallet from <%s>. \nPlease ", cfg.KeystorePath)
 	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
 	if err != nil {
@@ -67,6 +57,9 @@ func NewConnection(cfg *config.RawChainConfig, log log15.Logger) (*Connection, e
 		}
 		poolClients[poolInfo.GetAddress().String()] = poolClient
 		poolSubkey[poolInfo.GetAddress().String()] = subKeyName
+	}
+	if len(poolClients) == 0 {
+		return nil, fmt.Errorf("no pool clients")
 	}
 
 	c := Connection{
@@ -189,4 +182,14 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	}
 
 	return afterBlockNumber, nil
+}
+
+func (c *Connection) BlockStoreUseAddress() string {
+	poolSlice := make([]string, 0)
+	for pool, _ := range c.poolClients {
+		poolSlice = append(poolSlice, pool)
+	}
+
+	sort.Sort(sort.StringSlice(poolSlice))
+	return poolSlice[0]
 }
