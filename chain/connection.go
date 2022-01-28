@@ -55,8 +55,10 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		if err != nil {
 			return nil, err
 		}
+		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 		poolClients[poolInfo.GetAddress().String()] = poolClient
 		poolSubkey[poolInfo.GetAddress().String()] = subKeyName
+		done()
 	}
 	if len(poolClients) == 0 {
 		return nil, fmt.Errorf("no pool clients")

@@ -2,6 +2,8 @@ package client
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -11,8 +13,9 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	rpcClient "github.com/tendermint/tendermint/rpc/client"
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
-	"os"
 )
+
+const AccountPrefix = "cosmos"
 
 //cosmos client
 type Client struct {

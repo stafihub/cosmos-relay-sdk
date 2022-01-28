@@ -3,6 +3,7 @@ package client
 import (
 	"errors"
 	"fmt"
+
 	clientTx "github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	kMultiSig "github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
@@ -15,6 +16,7 @@ import (
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/spf13/cobra"
+	"github.com/stafiprotocol/rtoken-relay-core/common/core"
 	tendermintTypes "github.com/tendermint/tendermint/types"
 )
 
@@ -22,12 +24,16 @@ var ErrNoMsgs = errors.New("no tx msgs")
 
 //c.clientCtx.FromAddress must be multi sig address
 func (c *Client) GenMultiSigRawTransferTx(toAddr types.AccAddress, amount types.Coins) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	msg := xBankTypes.NewMsgSend(c.clientCtx.GetFromAddress(), toAddr, amount)
 	return c.GenMultiSigRawTx(msg)
 }
 
 //only support one type coin
 func (c *Client) GenMultiSigRawBatchTransferTx(poolAddr types.AccAddress, outs []xBankTypes.Output) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	totalAmount := types.NewInt(0)
 	for _, out := range outs {
 		for _, coin := range out.Coins {
@@ -44,6 +50,8 @@ func (c *Client) GenMultiSigRawBatchTransferTx(poolAddr types.AccAddress, outs [
 
 //generate unsigned delegate tx
 func (c *Client) GenMultiSigRawDelegateTx(delAddr types.AccAddress, valAddrs []types.ValAddress, amount types.Coin) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	if len(valAddrs) == 0 {
 		return nil, errors.New("no valAddrs")
 	}
@@ -62,6 +70,8 @@ func (c *Client) GenMultiSigRawDelegateTx(delAddr types.AccAddress, valAddrs []t
 
 //generate unsigned unDelegate tx
 func (c *Client) GenMultiSigRawUnDelegateTx(delAddr types.AccAddress, valAddrs []types.ValAddress, amount types.Coin) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	if len(valAddrs) == 0 {
 		return nil, errors.New("no valAddrs")
 	}
@@ -79,6 +89,8 @@ func (c *Client) GenMultiSigRawUnDelegateTx(delAddr types.AccAddress, valAddrs [
 //generate unsigned unDelegate tx
 func (c *Client) GenMultiSigRawUnDelegateTxV2(delAddr types.AccAddress, valAddrs []types.ValAddress,
 	amounts map[string]types.Int) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 
 	if len(valAddrs) == 0 {
 		return nil, errors.New("no valAddrs")
@@ -97,12 +109,16 @@ func (c *Client) GenMultiSigRawUnDelegateTxV2(delAddr types.AccAddress, valAddrs
 
 //generate unsigned reDelegate tx
 func (c *Client) GenMultiSigRawReDelegateTx(delAddr types.AccAddress, valSrcAddr, valDstAddr types.ValAddress, amount types.Coin) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	msg := xStakingTypes.NewMsgBeginRedelegate(delAddr, valSrcAddr, valDstAddr, amount)
 	return c.GenMultiSigRawTx(msg)
 }
 
 //generate unsigned reDelegate tx
 func (c *Client) GenMultiSigRawReDelegateTxWithTarget(delAddr types.AccAddress, valSrcAddrs map[string]types.Coin, valDstAddr types.ValAddress) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	msgs := make([]types.Msg, 0)
 	for addrStr, amount := range valSrcAddrs {
 		valAddress, err := types.ValAddressFromBech32(addrStr)
@@ -117,12 +133,16 @@ func (c *Client) GenMultiSigRawReDelegateTxWithTarget(delAddr types.AccAddress, 
 
 //generate unsigned withdraw delegate reward tx
 func (c *Client) GenMultiSigRawWithdrawDeleRewardTx(delAddr types.AccAddress, valAddr types.ValAddress) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
 	return c.GenMultiSigRawTx(msg)
 }
 
 //generate unsigned withdraw reward then delegate reward tx
 func (c *Client) GenMultiSigRawWithdrawRewardThenDeleTx(delAddr types.AccAddress, valAddr types.ValAddress, amount types.Coin) ([]byte, error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
 	msg2 := xStakingTypes.NewMsgDelegate(delAddr, valAddr, amount)
 	return c.GenMultiSigRawTx(msg, msg2)
@@ -134,6 +154,8 @@ func (c *Client) GenMultiSigRawWithdrawAllRewardTx(delAddr types.AccAddress, hei
 	if err != nil {
 		return nil, err
 	}
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 
 	delegations := delValsRes.GetDelegationResponses()
 	// build multi-message transaction
@@ -169,6 +191,10 @@ func (c *Client) GenMultiSigRawWithdrawAllRewardThenDeleTx(delAddr types.AccAddr
 	if err != nil {
 		return nil, err
 	}
+
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
+
 	rewards := make(map[string]types.Coin)
 	for _, r := range totalReward.Rewards {
 		rewards[r.ValidatorAddress] = types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
@@ -225,6 +251,10 @@ func (c *Client) GenMultiSigRawDeleRewardTx(delAddr types.AccAddress, height int
 	if err != nil {
 		return nil, err
 	}
+
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
+
 	rewards := make(map[string]types.Coin)
 	for _, r := range totalReward.Rewards {
 		rewards[r.ValidatorAddress] = types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
@@ -289,7 +319,8 @@ func (c *Client) SignMultiSigRawTx(rawTx []byte, fromSubKey string) (signature [
 	if err != nil {
 		return nil, err
 	}
-
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	cmd := cobra.Command{}
 	txf := clientTx.NewFactoryCLI(c.clientCtx, cmd.Flags())
 	txf = txf.WithSequence(account.GetSequence()).
@@ -313,6 +344,8 @@ func (c *Client) SignMultiSigRawTx(rawTx []byte, fromSubKey string) (signature [
 
 //c.clientCtx.FromAddress  must be multi sig address
 func (c *Client) SignMultiSigRawTxWithSeq(sequence uint64, rawTx []byte, fromSubKey string) (signature []byte, err error) {
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	cmd := cobra.Command{}
 	txf := clientTx.NewFactoryCLI(c.clientCtx, cmd.Flags())
 	txf = txf.WithSequence(sequence).
@@ -336,7 +369,8 @@ func (c *Client) SignMultiSigRawTxWithSeq(sequence uint64, rawTx []byte, fromSub
 
 //assemble multiSig tx bytes for broadcast
 func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold uint32) (txHash, txBts []byte, err error) {
-
+	done := core.UseSdkConfigContext(AccountPrefix)
+	defer done()
 	multisigInfo, err := c.clientCtx.Keyring.Key(c.clientCtx.FromName)
 	if err != nil {
 		return
