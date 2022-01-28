@@ -12,8 +12,8 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/types"
 	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/config"
-	"github.com/stafiprotocol/rtoken-relay-core/core"
+	"github.com/stafiprotocol/rtoken-relay-core/common/config"
+	"github.com/stafiprotocol/rtoken-relay-core/common/core"
 	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
 )
 

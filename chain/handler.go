@@ -8,8 +8,8 @@ import (
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/types"
 	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/core"
-	"github.com/stafiprotocol/rtoken-relay-core/utils"
+	"github.com/stafiprotocol/rtoken-relay-core/common/core"
+	"github.com/stafiprotocol/rtoken-relay-core/common/utils"
 	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
 )
 

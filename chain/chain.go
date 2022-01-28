@@ -7,8 +7,8 @@ import (
 
 	"github.com/ChainSafe/log15"
 
-	"github.com/stafiprotocol/rtoken-relay-core/config"
-	"github.com/stafiprotocol/rtoken-relay-core/core"
+	"github.com/stafiprotocol/rtoken-relay-core/common/config"
+	"github.com/stafiprotocol/rtoken-relay-core/common/core"
 )
 
 var (
