@@ -61,7 +61,7 @@ func NewClient(k keyring.Keyring, chainId, fromName, gasPrice, denom, endPoint s
 
 		account, err := retClient.GetAccount()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("Client.GetAccount failed: %s", err)
 		}
 		retClient.accountNumber = account.GetAccountNumber()
 

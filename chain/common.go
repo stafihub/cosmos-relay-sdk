@@ -130,7 +130,7 @@ func GetBondUnbondUnsignedTx(client *hubClient.Client, bond, unbond *big.Int,
 	valAddrsLen := len(valAddrs)
 	//check valAddrs length
 	if valAddrsLen == 0 {
-		return nil, fmt.Errorf("no valAddrs,pool: %s", poolAddr)
+		return nil, fmt.Errorf("pool no valAddrs")
 	}
 	//check totalDelegateAmount
 	if totalDelegateAmount.LT(types.NewInt(3 * int64(valAddrsLen))) {
@@ -417,6 +417,7 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 	logger log15.Logger) ([]byte, []xBankTypes.Output, error) {
 
 	outPuts := make([]xBankTypes.Output, 0)
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 	for _, receive := range receives {
 		addr, err := types.AccAddressFromBech32(receive.Recipient)
 		if err != nil {
@@ -429,6 +430,7 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 		}
 		outPuts = append(outPuts, out)
 	}
+	done()
 
 	//len should not be 0
 	if len(outPuts) == 0 {
@@ -451,11 +453,6 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	sigs *core.EventSignatureEnough, m *core.Message, txHash, txBts []byte) error {
 	retry := BlockRetryLimit
 	txHashHexStr := hex.EncodeToString(txHash)
-	_, err := types.AccAddressFromHex(sigs.Pool)
-	if err != nil {
-		h.log.Error("checkAndSend AccAddressFromHex failed", "err", err)
-		return err
-	}
 
 	for {
 		if retry <= 0 {
@@ -525,6 +522,7 @@ func (h *Handler) sendBondReportMsg(shotIdStr string) error {
 		},
 	}
 
+	h.log.Info("sendBondReportMsg", "msg", m)
 	return h.router.Send(&m)
 }
 

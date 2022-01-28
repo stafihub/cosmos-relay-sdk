@@ -89,15 +89,22 @@ func (h *Handler) handleMessage(m *core.Message) error {
 //2 sign it with subKey
 //3 send signature to stafihub
 func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
+	h.log.Info("handleEraPoolUpdatedEvent", "msg", m)
 	eventEraPoolUpdated, ok := m.Content.(core.EventEraPoolUpdated)
 	if !ok {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
 	}
 	snap := eventEraPoolUpdated.Snapshot
+
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
+		done()
 		return err
 	}
+	poolAddressStr := poolAddress.String()
+	done()
+
 	//check bond/unbond is needed
 	//bond report if no need
 	bondCmpUnbondResult := snap.Chunk.Bond.BigInt().Cmp(snap.Chunk.Unbond.BigInt())
@@ -107,10 +114,10 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 
 	//get poolClient of this pool address
-	poolClient, err := h.conn.GetPoolClient(poolAddress.String())
+	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
 		h.log.Error("EraPoolUpdated pool failed",
-			"pool hex address", poolAddress.String(),
+			"pool hex address", poolAddressStr,
 			"err", err)
 		return err
 	}
@@ -118,7 +125,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	height, err := h.conn.GetHeightByEra(snap.Era)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"err", snap.Era,
 			"err", err)
 		return err
@@ -126,7 +133,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	unSignedTx, err := GetBondUnbondUnsignedTx(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height)
 	if err != nil {
 		h.log.Error("GetBondUnbondUnsignedTx failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"height", height,
 			"err", err)
 		return err
@@ -136,15 +143,15 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	seq, err := poolClient.GetSequence(0, poolAddress)
 	if err != nil {
 		h.log.Error("GetSequence failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"err", err)
 		return err
 	}
 
-	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddress.String()])
+	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
 	if err != nil {
 		h.log.Error("SignMultiSigRawTxWithSeq failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"unsignedTx", string(unSignedTx),
 			"err", err)
 		return err
@@ -170,12 +177,12 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 
 	if bondCmpUnbondResult > 0 {
 		h.log.Info("processEraPoolUpdatedEvt gen unsigned bond Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
 			"proposalId", proposalIdHexStr)
 	} else {
 		h.log.Info("processEraPoolUpdatedEvt gen unsigned unbond Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
 			"proposalId", proposalIdHexStr)
 	}
@@ -189,22 +196,32 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 //3 sign it with subKey
 //4 send signature to stafihub
 func (h *Handler) handleBondReportedEvent(m *core.Message) error {
+	h.log.Info("handleBondReportedEvent", "msg", m)
 	eventBondReported, ok := m.Content.(core.EventBondReported)
 	if !ok {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
 	}
 	snap := eventBondReported.Snapshot
+
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
+		done()
+		return err
+	}
+	poolAddressStr := poolAddress.String()
+	done()
+
+	if err != nil {
 		h.log.Error("PoolAddr cast to cosmos AccAddress failed",
-			"pool address", snap.GetPool(),
+			"pool address", poolAddressStr,
 			"err", err)
 		return err
 	}
-	poolClient, err := h.conn.GetPoolClient(poolAddress.String())
+	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
 		h.log.Error("processBondReportEvent failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"error", err)
 		return err
 	}
@@ -212,7 +229,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	height, err := h.conn.GetHeightByEra(snap.Era)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"era", snap.Era,
 			"err", err)
 		return err
@@ -220,7 +237,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	unSignedTx, genTxType, totalDeleAmount, err := GetClaimRewardUnsignedTx(poolClient, poolAddress, height, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt())
 	if err != nil && err != hubClient.ErrNoMsgs {
 		h.log.Error("GetClaimRewardUnsignedTx failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"height", height,
 			"err", err)
 		return err
@@ -230,7 +247,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 		if err != nil {
 			h.log.Error("activeReport failed",
-				"pool", poolAddress.String(),
+				"pool", poolAddressStr,
 				"err", err)
 			return err
 		}
@@ -238,7 +255,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		for _, dele := range delegationsRes.GetDelegationResponses() {
 			total = total.Add(dele.Balance.Amount)
 		}
-		h.log.Info("no need claim reward", "pool", poolAddress, "era", snap.Era, "height", height)
+		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt(), big.NewInt(0))
 	}
 
@@ -246,15 +263,15 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	seq, err := poolClient.GetSequence(0, poolAddress)
 	if err != nil {
 		h.log.Error("GetSequence failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"err", err)
 		return err
 	}
 
-	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddress.String()])
+	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
 	if err != nil {
 		h.log.Error("SignMultiSigRawTx failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"unsignedTx", string(unSignedTx),
 			"err", err)
 		return err
@@ -281,19 +298,19 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	switch genTxType {
 	case 1:
 		h.log.Info("processBondReportEvent gen unsigned claim reward Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"total delegate amount", totalDeleAmount.String(),
 			"proposalId", proposalIdHexStr)
 
 	case 2:
 		h.log.Info("processBondReportEvent gen unsigned delegate reward Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"total delegate amount", totalDeleAmount.String(),
 			"proposalId", proposalIdHexStr)
 
 	case 3:
 		h.log.Info("processBondReportEvent gen unsigned claim and delegate reward Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"total delegate amount", totalDeleAmount.String(),
 			"proposalId", proposalIdHexStr)
 
@@ -308,34 +325,39 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 //2 sign it with subKey
 //3 send signature to stafihub
 func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
+	h.log.Info("handleActiveReportedEvent", "msg", m)
+
 	eventActiveReported, ok := m.Content.(core.EventActiveReported)
 	if !ok {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
 	}
 	snap := eventActiveReported.Snapshot
-	poolAddress, err := types.AccAddressFromBech32(snap.Pool)
+
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
-		h.log.Error("PoolAddr cast to cosmos AccAddress failed",
-			"pool address", snap.GetPool(),
-			"err", err)
+		done()
 		return err
 	}
-	poolClient, err := h.conn.GetPoolClient(poolAddress.String())
+	poolAddressStr := poolAddress.String()
+	done()
+
+	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
 		h.log.Error("processBondReportEvent failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"error", err)
 		return err
 	}
 
 	unSignedTx, outPuts, err := GetTransferUnsignedTx(poolClient, poolAddress, eventActiveReported.PoolUnbond.Unbondings, h.log)
 	if err != nil && err != ErrNoOutPuts {
-		h.log.Error("GetTransferUnsignedTx failed", "pool address", poolAddress.String(), "err", err)
+		h.log.Error("GetTransferUnsignedTx failed", "pool address", poolAddressStr, "err", err)
 		return err
 	}
 	if err == ErrNoOutPuts {
 		h.log.Info("processActiveReportedEvent no need transfer Tx",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"era", snap.Era,
 			"snapId", eventActiveReported.ShotId)
 		return h.sendTransferReportMsg(eventActiveReported.ShotId)
@@ -345,15 +367,15 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	seq, err := poolClient.GetSequence(0, poolAddress)
 	if err != nil {
 		h.log.Error("GetSequence failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"err", err)
 		return err
 	}
 
-	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddress.String()])
+	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
 	if err != nil {
 		h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"unsignedTx", string(unSignedTx),
 			"err", err)
 		return err
@@ -372,7 +394,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	h.conn.CacheUnsignedTx(proposalIdHexStr, &wrapUnsignedTx)
 
 	h.log.Info("processActiveReportedEvent gen unsigned transfer Tx",
-		"pool address", poolAddress.String(),
+		"pool address", poolAddressStr,
 		"out put", outPuts,
 		"proposalId", proposalIdHexStr,
 		"unsignedTx", hex.EncodeToString(unSignedTx),
@@ -390,23 +412,25 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 //	(3)transfer type: report transfer to stafihub
 //  (4)redegate type:rm cached unsigned tx
 func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
+	h.log.Info("handleSignatureEnoughEvent", "msg", m)
 	eventSignatureEnouth, ok := m.Content.(*core.EventSignatureEnough)
 	if !ok {
 		return fmt.Errorf("EventSignatureEnough cast failed, %+v", m)
 	}
 
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 	poolAddress, err := types.AccAddressFromBech32(eventSignatureEnouth.Pool)
 	if err != nil {
-		h.log.Error("PoolAddr cast to cosmos AccAddress failed",
-			"pool address", poolAddress.String(),
-			"err", err)
+		done()
 		return err
 	}
+	poolAddressStr := poolAddress.String()
+	done()
 
 	poolClient, err := h.conn.GetPoolClient(eventSignatureEnouth.Pool)
 	if err != nil {
 		h.log.Error("processSignatureEnoughEvt failed",
-			"pool address", poolAddress.String(),
+			"pool address", poolAddressStr,
 			"error", err)
 		return err
 	}
@@ -435,7 +459,7 @@ func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
 	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrappedUnSignedTx.UnsignedTx, eventSignatureEnouth.Signatures, eventSignatureEnouth.Threshold)
 	if err != nil {
 		h.log.Error("processSignatureEnoughEvt AssembleMultiSigTx failed",
-			"pool address ", poolAddress.String(),
+			"pool address ", poolAddressStr,
 			"unsignedTx", hex.EncodeToString(wrappedUnSignedTx.UnsignedTx),
 			"signatures", bytesArrayToStr(eventSignatureEnouth.Signatures),
 			"threshold", eventSignatureEnouth.Threshold,

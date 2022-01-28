@@ -27,7 +27,7 @@ type Chain struct {
 }
 
 func NewChain() *Chain {
-	return &Chain{rSymbol: core.HubRFIS}
+	return &Chain{}
 }
 
 func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysErr chan<- error) error {
@@ -62,11 +62,13 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysE
 	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), startBlk, bs, conn, logger, stop, sysErr)
 	h := NewHandler(conn, logger, stop, sysErr)
 
+	c.rSymbol = core.RSymbol(cfg.Rsymbol)
 	c.listener = l
 	c.handler = h
 	c.conn = conn
 	c.name = cfg.Name
 	c.initialized = true
+	c.stop = stop
 	return nil
 }
 

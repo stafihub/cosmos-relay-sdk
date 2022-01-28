@@ -53,15 +53,19 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		if !l.hasPool(recipient) {
 			return nil
 		}
+		from := event.Attributes[1].Value
 		amountStr := event.Attributes[2].Value
 
 		m := core.Message{
 			Source:      l.symbol,
 			Destination: l.caredSymbol,
 		}
-		amount, ok := types.NewIntFromString(amountStr)
-		if !ok {
-			return fmt.Errorf("amount format err, %s", amountStr)
+		coin, err := types.ParseCoinNormalized(amountStr)
+		if err != nil {
+			return fmt.Errorf("amount format err, %s", err)
+		}
+		if coin.GetDenom() != client.GetDenom() {
+			return fmt.Errorf("transfer denom not equal,expect %s got %s", client.GetDenom(), coin.GetDenom())
 		}
 
 		block, err := client.QueryBlock(height)
@@ -70,28 +74,42 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		}
 		blockHash := hex.EncodeToString(block.BlockID.Hash)
 
+		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 		var memoInTx string
 		tx, err := client.GetTxConfig().TxDecoder()(txValue)
 		if err != nil {
+			done()
 			return err
 		}
 		memoTx, ok := tx.(types.TxWithMemo)
 		if !ok {
+			done()
 			return fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txHash)
 		}
 		memoInTx = memoTx.GetMemo()
+		if len(memoInTx) == 0 {
+			done()
+			l.log.Warn("received token but no memo", "pool", recipient, "from", from, "txHash", txHash, "coin", amountStr)
+			return nil
+		}
+		done()
+
+		done = core.UseSdkConfigContext("fis")
 		bonder, err := types.AccAddressFromBech32(memoInTx)
 		if err != nil {
+			done()
 			return err
 		}
+		bonderStr := bonder.String()
+		done()
 
 		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 			Denom:     string(core.HubRFIS),
-			Bonder:    bonder.String(),
+			Bonder:    bonderStr,
 			Pool:      recipient,
 			Blockhash: blockHash,
 			Txhash:    txHash,
-			Amount:    amount,
+			Amount:    coin.Amount,
 		}
 		m.Content = proposalExeLiquidityBond
 		return l.submitMessage(&m)
