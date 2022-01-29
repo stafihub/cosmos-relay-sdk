@@ -105,14 +105,6 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	poolAddressStr := poolAddress.String()
 	done()
 
-	//check bond/unbond is needed
-	//bond report if no need
-	bondCmpUnbondResult := snap.Chunk.Bond.BigInt().Cmp(snap.Chunk.Unbond.BigInt())
-	if bondCmpUnbondResult == 0 {
-		h.log.Info("EvtEraPoolUpdated bond equal to unbond, no need to bond/unbond")
-		return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
-	}
-
 	//get poolClient of this pool address
 	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
@@ -120,6 +112,14 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"pool hex address", poolAddressStr,
 			"err", err)
 		return err
+	}
+
+	//check bond/unbond is needed
+	//bond report if no need
+	bondCmpUnbondResult := snap.Chunk.Bond.BigInt().Cmp(snap.Chunk.Unbond.BigInt())
+	if bondCmpUnbondResult == 0 {
+		h.log.Info("EvtEraPoolUpdated bond equal to unbond, no need to bond/unbond")
+		return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
 	}
 
 	height, err := h.conn.GetHeightByEra(snap.Era)
@@ -148,7 +148,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		return err
 	}
 
-	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
 	if err != nil {
 		h.log.Error("SignMultiSigRawTxWithSeq failed",
 			"pool address", poolAddressStr,
@@ -186,8 +186,16 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
 			"proposalId", proposalIdHexStr)
 	}
-	//todo send signature to stafihub
-	return nil
+	// send signature to stafihub
+	submitSignature := core.ParamSubmitSignature{
+		Denom:     snap.GetDenom(),
+		Era:       snap.GetEra(),
+		Pool:      poolAddressStr,
+		TxType:    stafiHubXLedgerTypes.TxTypeBond,
+		PropId:    proposalId,
+		Signature: hex.EncodeToString(sigBts),
+	}
+	return h.sendSubmitSignatureMsg(&submitSignature)
 }
 
 //handle bondReportEvent from stafihub
@@ -207,17 +215,14 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
+		h.log.Error("PoolAddr cast to cosmos AccAddress failed",
+			"pool address", snap.GetPool(),
+			"err", err)
 		return err
 	}
 	poolAddressStr := poolAddress.String()
 	done()
 
-	if err != nil {
-		h.log.Error("PoolAddr cast to cosmos AccAddress failed",
-			"pool address", poolAddressStr,
-			"err", err)
-		return err
-	}
 	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
 		h.log.Error("processBondReportEvent failed",
@@ -225,7 +230,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"error", err)
 		return err
 	}
-
 	height, err := h.conn.GetHeightByEra(snap.Era)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
@@ -268,7 +272,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return err
 	}
 
-	_, err = poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
 	if err != nil {
 		h.log.Error("SignMultiSigRawTx failed",
 			"pool address", poolAddressStr,
@@ -316,8 +320,16 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 
 	}
 
-	//todo send signature to stafi
-	return nil
+	// send signature to stafi
+	submitSignature := core.ParamSubmitSignature{
+		Denom:     snap.GetDenom(),
+		Era:       snap.GetEra(),
+		Pool:      poolAddressStr,
+		TxType:    stafiHubXLedgerTypes.TxTypeBond,
+		PropId:    proposalId,
+		Signature: hex.EncodeToString(sigBts),
+	}
+	return h.sendSubmitSignatureMsg(&submitSignature)
 }
 
 //handle activeReportedEvent from stafihub
@@ -400,8 +412,16 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		"unsignedTx", hex.EncodeToString(unSignedTx),
 		"signature", hex.EncodeToString(sigBts))
 
-	//todo send to stafihub
-	return nil
+	// send to stafihub
+	submitSignature := core.ParamSubmitSignature{
+		Denom:     snap.GetDenom(),
+		Era:       snap.GetEra(),
+		Pool:      poolAddressStr,
+		TxType:    stafiHubXLedgerTypes.TxTypeBond,
+		PropId:    proposalId,
+		Signature: hex.EncodeToString(sigBts),
+	}
+	return h.sendSubmitSignatureMsg(&submitSignature)
 }
 
 //handle SignatureEnough event

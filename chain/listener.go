@@ -65,7 +65,7 @@ func (l *Listener) start() error {
 		return fmt.Errorf("starting block (%d) is greater than latest known block (%d)", l.startBlock, latestBlk)
 	}
 
-	getPools := core.GetPools{
+	getPools := core.ParamGetPools{
 		Denom: string(l.symbol),
 		Pools: make(chan []string, 1),
 	}
@@ -84,7 +84,6 @@ func (l *Listener) start() error {
 	defer timer.Stop()
 
 	l.log.Debug("wait getpools from stafihub", "rSymbol", l.symbol)
-	//wait for validators
 	select {
 	case <-timer.C:
 		return fmt.Errorf("get pools from stafihub timeout")

@@ -563,3 +563,13 @@ func (h *Handler) sendTransferReportMsg(shotIdStr string) error {
 
 	return h.router.Send(&m)
 }
+
+func (h *Handler) sendSubmitSignatureMsg(submitSignature *core.ParamSubmitSignature) error {
+	m := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonSubmitSignature,
+		Content:     *submitSignature,
+	}
+	return h.router.Send(&m)
+}
