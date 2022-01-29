@@ -337,6 +337,12 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 	if err != nil {
 		return nil, 0, nil, err
 	}
+
+	// no delegation just return
+	if len(rewardRes.Rewards) == 0 {
+		return nil, 0, nil, hubClient.ErrNoMsgs
+	}
+
 	rewardAmount := rewardRes.GetTotal().AmountOf(client.GetDenom()).TruncateInt()
 
 	bondCmpUnbond := bond.Cmp(unBond)

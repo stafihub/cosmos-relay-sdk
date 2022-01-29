@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -248,16 +249,19 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	}
 	//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
 	if err == hubClient.ErrNoMsgs {
+		total := types.NewInt(0)
 		delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 		if err != nil {
-			h.log.Error("activeReport failed",
-				"pool", poolAddressStr,
-				"err", err)
-			return err
-		}
-		total := types.NewInt(0)
-		for _, dele := range delegationsRes.GetDelegationResponses() {
-			total = total.Add(dele.Balance.Amount)
+			if !strings.Contains(err.Error(), "unable to find delegations for address") {
+				h.log.Error("QueryDelegations failed",
+					"pool", poolAddressStr,
+					"err", err)
+				return err
+			}
+		} else {
+			for _, dele := range delegationsRes.GetDelegationResponses() {
+				total = total.Add(dele.Balance.Amount)
+			}
 		}
 		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt(), big.NewInt(0))

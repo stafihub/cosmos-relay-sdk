@@ -138,6 +138,13 @@ func (l *Listener) pollBlocks() error {
 				time.Sleep(BlockRetryInterval)
 				continue
 			}
+			err = l.processEra()
+			if err != nil {
+				l.log.Error("Failed to process era", "err", err)
+				retry--
+				time.Sleep(BlockRetryInterval)
+				continue
+			}
 			err = l.processBlockEvents(int64(willDealBlock))
 			if err != nil {
 				l.log.Error("Failed to process events in block", "block", willDealBlock, "err", err)
@@ -171,4 +178,39 @@ func (l *Listener) submitMessage(m *core.Message) error {
 
 func (l *Listener) hasPool(p string) bool {
 	return l.pools[p]
+}
+
+func (l *Listener) processEra() error {
+	poolClient, err := l.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
+
+	_, timestamp, err := poolClient.GetCurrentBLockAndTimestamp()
+	if err != nil {
+		return err
+	}
+
+	if l.conn.eraSeconds <= 0 {
+		return fmt.Errorf("eraSeconds must bigger than zero, eraSeconds: %d", l.conn.eraSeconds)
+	}
+	era := timestamp / l.conn.eraSeconds
+
+	return l.sendNewEraMsg(uint32(era))
+}
+
+func (l *Listener) sendNewEraMsg(era uint32) error {
+	proposal := core.ProposalSetChainEra{
+		Denom: string(l.symbol),
+		Era:   era,
+	}
+	m := core.Message{
+		Source:      l.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonNewEra,
+		Content:     proposal,
+	}
+
+	l.log.Debug("sendNewEraMsg", "msg", m)
+	return l.router.Send(&m)
 }
