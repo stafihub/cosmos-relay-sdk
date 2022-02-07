@@ -58,7 +58,8 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 
 		m := core.Message{
 			Source:      l.symbol,
-			Destination: l.caredSymbol,
+			Destination: core.HubRFIS,
+			Reason:      core.ReasonExeLiquidityBond,
 		}
 		coin, err := types.ParseCoinNormalized(amountStr)
 		if err != nil {
@@ -104,7 +105,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		done()
 
 		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-			Denom:     string(core.HubRFIS),
+			Denom:     string(l.symbol),
 			Bonder:    bonderStr,
 			Pool:      recipient,
 			Blockhash: blockHash,
@@ -112,6 +113,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 			Amount:    coin.Amount,
 		}
 		m.Content = proposalExeLiquidityBond
+		l.log.Info("find liquiditybond transfer", "msg", m)
 		return l.submitMessage(&m)
 	default:
 		return nil

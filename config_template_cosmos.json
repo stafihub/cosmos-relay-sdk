@@ -14,9 +14,11 @@
         "gasPrice": "0.00001fis",
         "eraSeconds": 100000,
         "pools": {
-          "pool1": "subkey1",
-          "pool2": "subkey2"
-        }
+          "pool1": "subkey1"
+        },
+        "targetValidators": [
+          "cosmosvaloper129kf5egy80e8me93lg3h5lk54kp0tle7w9npre"
+        ]
       }
     }
   ]

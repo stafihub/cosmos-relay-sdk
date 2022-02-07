@@ -17,21 +17,23 @@ import (
 const msgLimit = 4096
 
 type Handler struct {
-	conn       *Connection
-	router     *core.Router
-	msgChan    chan *core.Message
-	log        log15.Logger
-	stopChan   <-chan struct{}
-	sysErrChan chan<- error
+	targetValidators []types.ValAddress
+	conn             *Connection
+	router           *core.Router
+	msgChan          chan *core.Message
+	log              log15.Logger
+	stopChan         <-chan struct{}
+	sysErrChan       chan<- error
 }
 
-func NewHandler(conn *Connection, log log15.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
+func NewHandler(targets []types.ValAddress, conn *Connection, log log15.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
 	return &Handler{
-		conn:       conn,
-		msgChan:    make(chan *core.Message, msgLimit),
-		log:        log,
-		stopChan:   stopChan,
-		sysErrChan: sysErrChan,
+		targetValidators: targets,
+		conn:             conn,
+		msgChan:          make(chan *core.Message, msgLimit),
+		log:              log,
+		stopChan:         stopChan,
+		sysErrChan:       sysErrChan,
 	}
 }
 
@@ -131,7 +133,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-	unSignedTx, err := GetBondUnbondUnsignedTx(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height)
+	unSignedTx, err := GetBondUnbondUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.targetValidators)
 	if err != nil {
 		h.log.Error("GetBondUnbondUnsignedTx failed",
 			"pool address", poolAddressStr,
@@ -437,7 +439,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 //  (4)redegate type:rm cached unsigned tx
 func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
 	h.log.Info("handleSignatureEnoughEvent", "msg", m)
-	eventSignatureEnouth, ok := m.Content.(*core.EventSignatureEnough)
+	eventSignatureEnouth, ok := m.Content.(core.EventSignatureEnough)
 	if !ok {
 		return fmt.Errorf("EventSignatureEnough cast failed, %+v", m)
 	}
@@ -491,7 +493,7 @@ func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
 		return fmt.Errorf("assemble multisigTx failed")
 	}
 
-	return h.checkAndSend(poolClient, wrappedUnSignedTx, eventSignatureEnouth, m, txHash, txBts)
+	return h.checkAndSend(poolClient, wrappedUnSignedTx, &eventSignatureEnouth, m, txHash, txBts)
 }
 
 func bytesArrayToStr(bts [][]byte) string {

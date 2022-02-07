@@ -201,45 +201,10 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		return nil, errors.New("bond equal to unbond")
 	}
 
-	deleRes, err := client.QueryDelegations(poolAddr, height)
-	if err != nil {
-		return nil, err
-	}
-
-	totalDelegateAmount := types.NewInt(0)
-	valAddrs := make([]types.ValAddress, 0)
-	deleAmount := make(map[string]types.Int)
-	//get validators amount>=3
-	for _, dele := range deleRes.GetDelegationResponses() {
-		//filter old validator,we say validator is old if amount < 3 uatom
-		if dele.GetBalance().Amount.LT(types.NewInt(3)) {
-			continue
-		}
-
-		valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
-		if err != nil {
-			return nil, err
-		}
-
-		valAddrs = append(valAddrs, valAddr)
-		totalDelegateAmount = totalDelegateAmount.Add(dele.GetBalance().Amount)
-		deleAmount[valAddr.String()] = dele.GetBalance().Amount
-	}
-
-	valAddrsLen := len(valAddrs)
-	//check valAddrs length
-	if valAddrsLen == 0 {
-		return nil, fmt.Errorf("no valAddrs,pool: %s", poolAddr)
-	}
-	//check totalDelegateAmount
-	if totalDelegateAmount.LT(types.NewInt(3 * int64(valAddrsLen))) {
-		return nil, fmt.Errorf("validators have no reserve value to unbond")
-	}
-
 	//bond or unbond to their validators average
 	if bond.Cmp(unbond) > 0 {
-		valAddrs = targets
-		valAddrsLen = len(valAddrs)
+		valAddrs := targets
+		valAddrsLen := len(valAddrs)
 		//check valAddrs length
 		if valAddrsLen == 0 {
 			return nil, fmt.Errorf("no target valAddrs,pool: %s", poolAddr)
@@ -252,6 +217,41 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 			valAddrs,
 			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)))
 	} else {
+
+		deleRes, err := client.QueryDelegations(poolAddr, height)
+		if err != nil {
+			return nil, fmt.Errorf("QueryDelegations failed: %s", err)
+		}
+
+		totalDelegateAmount := types.NewInt(0)
+		valAddrs := make([]types.ValAddress, 0)
+		deleAmount := make(map[string]types.Int)
+		//get validators amount>=3
+		for _, dele := range deleRes.GetDelegationResponses() {
+			//filter old validator,we say validator is old if amount < 3 uatom
+			if dele.GetBalance().Amount.LT(types.NewInt(3)) {
+				continue
+			}
+
+			valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
+			if err != nil {
+				return nil, err
+			}
+
+			valAddrs = append(valAddrs, valAddr)
+			totalDelegateAmount = totalDelegateAmount.Add(dele.GetBalance().Amount)
+			deleAmount[valAddr.String()] = dele.GetBalance().Amount
+		}
+
+		valAddrsLen := len(valAddrs)
+		//check valAddrs length
+		if valAddrsLen == 0 {
+			return nil, fmt.Errorf("no valAddrs, pool: %s", poolAddr)
+		}
+		//check totalDelegateAmount
+		if totalDelegateAmount.LT(types.NewInt(3 * int64(valAddrsLen))) {
+			return nil, fmt.Errorf("validators have no reserve value to unbond")
+		}
 
 		//make val <= totalDelegateAmount-3*len and we revserve 3 uatom
 		val := unbond.Sub(unbond, bond)

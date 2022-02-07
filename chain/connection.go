@@ -68,6 +68,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		symbol:           core.RSymbol(cfg.Rsymbol),
 		eraSeconds:       int64(option.EraSeconds),
 		poolClients:      poolClients,
+		poolSubKey:       poolSubkey,
 		log:              log,
 		cachedUnsignedTx: make(map[string]*WrapUnsignedTx),
 	}
