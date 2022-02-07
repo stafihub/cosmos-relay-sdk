@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrEventAttributeNumberUnMatch = errors.New("ErrEventAttributeNumberTooFew")
+	ErrEventAttributeNumberUnMatch = errors.New("ErrEventAttributeNumberUnMatch")
 )
 
 func (l *Listener) processBlockEvents(currentBlock int64) error {
@@ -33,6 +33,10 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 			for _, event := range log.Events {
 				err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event)
 				if err != nil {
+					if err == ErrEventAttributeNumberUnMatch {
+						l.log.Warn("got transfer event but find err", "err", err.Error(), "txHash", tx.TxHash, "event", event)
+						continue
+					}
 					return err
 				}
 			}

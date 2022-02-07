@@ -266,7 +266,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			}
 		}
 		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
-		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt(), big.NewInt(0))
+		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
 
 	//use current seq
@@ -493,7 +493,7 @@ func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
 		return fmt.Errorf("assemble multisigTx failed")
 	}
 
-	return h.checkAndSend(poolClient, wrappedUnSignedTx, &eventSignatureEnouth, m, txHash, txBts)
+	return h.checkAndSend(poolClient, wrappedUnSignedTx, &eventSignatureEnouth, m, txHash, txBts, poolAddress)
 }
 
 func bytesArrayToStr(bts [][]byte) string {

@@ -200,6 +200,9 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 	if bond.Cmp(unbond) == 0 {
 		return nil, errors.New("bond equal to unbond")
 	}
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	poolAddrStr := poolAddr.String()
+	done()
 
 	//bond or unbond to their validators average
 	if bond.Cmp(unbond) > 0 {
@@ -207,7 +210,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		valAddrsLen := len(valAddrs)
 		//check valAddrs length
 		if valAddrsLen == 0 {
-			return nil, fmt.Errorf("no target valAddrs,pool: %s", poolAddr)
+			return nil, fmt.Errorf("no target valAddrs,pool: %s", poolAddrStr)
 		}
 
 		val := bond.Sub(bond, unbond)
@@ -233,14 +236,17 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 				continue
 			}
 
+			done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 			valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
 			if err != nil {
+				done()
 				return nil, err
 			}
 
 			valAddrs = append(valAddrs, valAddr)
 			totalDelegateAmount = totalDelegateAmount.Add(dele.GetBalance().Amount)
 			deleAmount[valAddr.String()] = dele.GetBalance().Amount
+			done()
 		}
 
 		valAddrsLen := len(valAddrs)
@@ -283,6 +289,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		}
 
 		//sort validators by delegate amount
+		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
 		sort.Slice(valAddrs, func(i int, j int) bool {
 			return deleAmount[valAddrs[i].String()].
 				GT(deleAmount[valAddrs[j].String()])
@@ -312,9 +319,10 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 			choosedAmount[validator.String()] = nowValMaxUnDeleAmount
 			selectedAmount = selectedAmount.Add(nowValMaxUnDeleAmount)
 		}
+		done()
 
 		if !enough {
-			return nil, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddr)
+			return nil, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddrStr)
 		}
 
 		unSignedTx, err = client.GenMultiSigRawUnDelegateTxV2(
@@ -456,9 +464,12 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	sigs *core.EventSignatureEnough, m *core.Message, txHash, txBts []byte) error {
+	sigs *core.EventSignatureEnough, m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
 	retry := BlockRetryLimit
 	txHashHexStr := hex.EncodeToString(txHash)
+	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	poolAddressStr := poolAddress.String()
+	done()
 
 	for {
 		if retry <= 0 {
@@ -498,7 +509,23 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
 		case stafiHubXLedgerTypes.TxTypeClaim: //claim and redelegate
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
-			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, wrappedUnSignedTx.Bond, wrappedUnSignedTx.Unbond)
+			total := types.NewInt(0)
+
+			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
+			if err != nil {
+				if !strings.Contains(err.Error(), "unable to find delegations for address") {
+					h.log.Error("QueryDelegations failed",
+						"pool", poolAddressStr,
+						"err", err)
+					return err
+				}
+			} else {
+				for _, dele := range delegationsRes.GetDelegationResponses() {
+					total = total.Add(dele.Balance.Amount)
+				}
+			}
+
+			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
 		case stafiHubXLedgerTypes.TxTypeTransfer: //transfer unbond token to user
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
@@ -532,7 +559,7 @@ func (h *Handler) sendBondReportMsg(shotIdStr string) error {
 	return h.router.Send(&m)
 }
 
-func (h *Handler) sendActiveReportMsg(shotIdStr string, staked, unstaked *big.Int) error {
+func (h *Handler) sendActiveReportMsg(shotIdStr string, staked *big.Int) error {
 	shotId, err := hex.DecodeString(shotIdStr)
 	if err != nil {
 		return err
@@ -545,7 +572,7 @@ func (h *Handler) sendActiveReportMsg(shotIdStr string, staked, unstaked *big.In
 			Denom:    string(h.conn.symbol),
 			ShotId:   shotId,
 			Staked:   types.NewIntFromBigInt(staked),
-			Unstaked: types.NewIntFromBigInt(unstaked),
+			Unstaked: types.NewInt(0),
 		},
 	}
 
