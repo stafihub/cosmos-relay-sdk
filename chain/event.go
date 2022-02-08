@@ -34,7 +34,7 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 				err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event)
 				if err != nil {
 					if err == ErrEventAttributeNumberUnMatch {
-						l.log.Warn("got transfer event but find err", "err", err.Error(), "txHash", tx.TxHash, "event", event)
+						// l.log.Warn("got multisend transfer event", "txHash", tx.TxHash, "event", event)
 						continue
 					}
 					return err
@@ -47,9 +47,9 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 }
 
 func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte, height int64, txHash string, event types.StringEvent) error {
-	// not support multisend now
 	switch {
 	case event.Type == xBankTypes.EventTypeTransfer:
+		// not support multisend now
 		if len(event.Attributes) != 3 {
 			return ErrEventAttributeNumberUnMatch
 		}

@@ -202,10 +202,12 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 }
 
 //handle bondReportEvent from stafihub
-//1 query reward on era height
-//2 gen (claim reward && delegate) or (claim reward) unsigned tx and cache it
-//3 sign it with subKey
-//4 send signature to stafihub
+//1 query reward on era height,
+//	(1) if no reward, just send active report
+//	(2) if has reward
+//		1) gen (claim reward && delegate) or (claim reward) unsigned tx and cache it
+//		2) sign it with subKey
+//		3) send signature to stafihub
 func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	h.log.Info("handleBondReportedEvent", "msg", m)
 	eventBondReported, ok := m.Content.(core.EventBondReported)
@@ -331,7 +333,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		Denom:     snap.GetDenom(),
 		Era:       snap.GetEra(),
 		Pool:      poolAddressStr,
-		TxType:    stafiHubXLedgerTypes.TxTypeBond,
+		TxType:    stafiHubXLedgerTypes.TxTypeClaim,
 		PropId:    proposalId,
 		Signature: hex.EncodeToString(sigBts),
 	}
@@ -423,7 +425,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		Denom:     snap.GetDenom(),
 		Era:       snap.GetEra(),
 		Pool:      poolAddressStr,
-		TxType:    stafiHubXLedgerTypes.TxTypeBond,
+		TxType:    stafiHubXLedgerTypes.TxTypeTransfer,
 		PropId:    proposalId,
 		Signature: hex.EncodeToString(sigBts),
 	}

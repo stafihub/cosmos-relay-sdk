@@ -189,10 +189,10 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 
 func (c *Connection) BlockStoreUseAddress() string {
 	poolSlice := make([]string, 0)
-	for pool, _ := range c.poolClients {
+	for pool := range c.poolClients {
 		poolSlice = append(poolSlice, pool)
 	}
 
-	sort.Sort(sort.StringSlice(poolSlice))
+	sort.Strings(poolSlice)
 	return poolSlice[0]
 }

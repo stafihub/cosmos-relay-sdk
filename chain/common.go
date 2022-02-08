@@ -210,17 +210,16 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		valAddrsLen := len(valAddrs)
 		//check valAddrs length
 		if valAddrsLen == 0 {
-			return nil, fmt.Errorf("no target valAddrs,pool: %s", poolAddrStr)
+			return nil, fmt.Errorf("no target valAddrs, pool: %s", poolAddrStr)
 		}
 
 		val := bond.Sub(bond, unbond)
 		val = val.Div(val, big.NewInt(int64(valAddrsLen)))
-		unSignedTx, err = client.GenMultiSigRawDelegateTx(
+		return client.GenMultiSigRawDelegateTx(
 			poolAddr,
 			valAddrs,
 			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)))
 	} else {
-
 		deleRes, err := client.QueryDelegations(poolAddr, height)
 		if err != nil {
 			return nil, fmt.Errorf("QueryDelegations failed: %s", err)
@@ -325,13 +324,11 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 			return nil, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddrStr)
 		}
 
-		unSignedTx, err = client.GenMultiSigRawUnDelegateTxV2(
+		return client.GenMultiSigRawUnDelegateTxV2(
 			poolAddr,
 			choosedVals,
 			choosedAmount)
 	}
-
-	return
 }
 
 //if bond > unbond only gen delegate tx  (txType: 2)
@@ -410,12 +407,12 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 	}
 
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, fmt.Errorf("gen unsignedTx err: %s", err)
 	}
 
-	decodedTx, err := client.GetTxConfig().TxDecoder()(unSignedTx)
+	decodedTx, err := client.GetTxConfig().TxJSONDecoder()(unSignedTx)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, fmt.Errorf("GetTxConfig().TxDecoder() failed: %s, unSignedTx: %s", err, string(unSignedTx))
 	}
 	totalAmountRet := types.NewInt(0)
 	for _, msg := range decodedTx.GetMsgs() {
@@ -475,7 +472,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		if retry <= 0 {
 			h.log.Error("checkAndSend broadcast tx reach retry limit",
 				"pool address", sigs.Pool)
-			break
+			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s", sigs.Pool)
 		}
 		//check on chain
 		res, err := poolClient.QueryTxByHash(txHashHexStr)
@@ -489,8 +486,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			//broadcast if not on chain
 			_, err = poolClient.BroadcastTx(txBts)
 			if err != nil && err != errType.ErrTxInMempoolCache {
-				h.log.Warn("checkAndSend BroadcastTx failed  will retry",
-					"err", err)
+				h.log.Warn("checkAndSend BroadcastTx failed  will retry", "err", err)
 			}
 			time.Sleep(BlockRetryInterval)
 			retry--
@@ -503,14 +499,14 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			"era", wrappedUnSignedTx.Era,
 			"txHash", txHashHexStr)
 
-		//inform stafi
+		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeBond: //bond or unbond
+			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
 		case stafiHubXLedgerTypes.TxTypeClaim: //claim and redelegate
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			total := types.NewInt(0)
-
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 			if err != nil {
 				if !strings.Contains(err.Error(), "unable to find delegations for address") {
@@ -524,19 +520,17 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 					total = total.Add(dele.Balance.Amount)
 				}
 			}
-
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
 		case stafiHubXLedgerTypes.TxTypeTransfer: //transfer unbond token to user
 			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
 		default:
-			h.log.Error("checkAndSend failed,unknown unsigned tx type",
+			h.log.Warn("checkAndSend failed,unknown unsigned tx type",
 				"pool", sigs.Pool,
 				"type", wrappedUnSignedTx.Type)
 			return nil
 		}
 	}
-	return nil
 }
 
 func (h *Handler) sendBondReportMsg(shotIdStr string) error {
