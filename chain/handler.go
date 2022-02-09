@@ -59,7 +59,7 @@ func (h *Handler) msgHandler() {
 	for {
 		select {
 		case <-h.stopChan:
-			h.log.Info("msgHandler stop")
+			h.log.Info("msgHandler receive stopChan, will stop")
 			return
 		case msg := <-h.msgChan:
 			err := h.handleMessage(msg)

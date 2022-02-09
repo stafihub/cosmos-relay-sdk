@@ -96,14 +96,44 @@ func (l *Listener) start() error {
 	}
 
 	go func() {
+		err := l.pollEra()
+		if err != nil {
+			l.log.Error("Polling era failed", "err", err)
+			l.sysErrChan <- err
+		}
+	}()
+
+	go func() {
 		err := l.pollBlocks()
 		if err != nil {
 			l.log.Error("Polling blocks failed", "err", err)
-			panic(err)
+			l.sysErrChan <- err
 		}
 	}()
 
 	return nil
+}
+
+func (l *Listener) pollEra() error {
+	err := l.processEra()
+	if err != nil {
+		return err
+	}
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-l.stopChan:
+			l.log.Info("pollEra receive stop chan, will stop")
+			return nil
+		case <-ticker.C:
+			err := l.processEra()
+			if err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (l *Listener) pollBlocks() error {
@@ -116,7 +146,8 @@ func (l *Listener) pollBlocks() error {
 	for {
 		select {
 		case <-l.stopChan:
-			return ErrorTerminated
+			l.log.Info("pollBlocks receive stop chan, will stop")
+			return nil
 		default:
 			if retry <= 0 {
 				return fmt.Errorf("pollBlocks reach retry limit ,symbol: %s", l.symbol)
@@ -137,13 +168,7 @@ func (l *Listener) pollBlocks() error {
 				time.Sleep(BlockRetryInterval)
 				continue
 			}
-			err = l.processEra()
-			if err != nil {
-				l.log.Error("Failed to process era", "err", err)
-				retry--
-				time.Sleep(BlockRetryInterval)
-				continue
-			}
+
 			err = l.processBlockEvents(int64(willDealBlock))
 			if err != nil {
 				l.log.Error("Failed to process events in block", "block", willDealBlock, "err", err)
@@ -185,9 +210,20 @@ func (l *Listener) processEra() error {
 		return err
 	}
 
-	_, timestamp, err := poolClient.GetCurrentBLockAndTimestamp()
-	if err != nil {
-		return err
+	var timestamp int64
+	retry := 0
+	for {
+		if retry >= BlockRetryLimit {
+			return fmt.Errorf("GetCurrentBLockAndTimestamp reach retry limit, err: %s", err)
+		}
+
+		_, timestamp, err = poolClient.GetCurrentBLockAndTimestamp()
+		if err != nil {
+			retry++
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		break
 	}
 
 	if l.conn.eraSeconds <= 0 {
