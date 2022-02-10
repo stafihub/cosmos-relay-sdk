@@ -7,8 +7,8 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/core"
 )
 
 var (

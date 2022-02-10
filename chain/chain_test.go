@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/ChainSafe/log15"
-	"github.com/stafiprotocol/cosmos-relay-sdk/chain"
-	"github.com/stafiprotocol/rtoken-relay-core/common/config"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
+	"github.com/stafihub/cosmos-relay-sdk/chain"
+	"github.com/stafihub/rtoken-relay-core/common/config"
+	"github.com/stafihub/rtoken-relay-core/common/core"
 )
 
 var (

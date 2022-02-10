@@ -16,10 +16,10 @@ import (
 	errType "github.com/cosmos/cosmos-sdk/types/errors"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
-	"github.com/stafiprotocol/rtoken-relay-core/common/utils"
-	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/utils"
+	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
 var ErrNoOutPuts = errors.New("outputs length is zero")
@@ -533,11 +533,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	}
 }
 
-func (h *Handler) sendBondReportMsg(shotIdStr string) error {
-	shotId, err := hex.DecodeString(shotIdStr)
-	if err != nil {
-		return err
-	}
+func (h *Handler) sendBondReportMsg(shotId string) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
@@ -553,11 +549,7 @@ func (h *Handler) sendBondReportMsg(shotIdStr string) error {
 	return h.router.Send(&m)
 }
 
-func (h *Handler) sendActiveReportMsg(shotIdStr string, staked *big.Int) error {
-	shotId, err := hex.DecodeString(shotIdStr)
-	if err != nil {
-		return err
-	}
+func (h *Handler) sendActiveReportMsg(shotId string, staked *big.Int) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
@@ -573,11 +565,7 @@ func (h *Handler) sendActiveReportMsg(shotIdStr string, staked *big.Int) error {
 	return h.router.Send(&m)
 }
 
-func (h *Handler) sendTransferReportMsg(shotIdStr string) error {
-	shotId, err := hex.DecodeString(shotIdStr)
-	if err != nil {
-		return err
-	}
+func (h *Handler) sendTransferReportMsg(shotId string) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,

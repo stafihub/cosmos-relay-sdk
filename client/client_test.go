@@ -15,7 +15,7 @@ import (
 	"github.com/JFJun/go-substrate-crypto/ss58"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stretchr/testify/assert"
 )
 

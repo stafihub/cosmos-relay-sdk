@@ -11,10 +11,10 @@ import (
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/types"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/common/config"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
-	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/config"
+	"github.com/stafihub/rtoken-relay-core/common/core"
+	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
 type Connection struct {

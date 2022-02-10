@@ -8,10 +8,10 @@ import (
 
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/types"
-	hubClient "github.com/stafiprotocol/cosmos-relay-sdk/client"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
-	"github.com/stafiprotocol/rtoken-relay-core/common/utils"
-	stafiHubXLedgerTypes "github.com/stafiprotocol/stafihub/x/ledger/types"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/utils"
+	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
 const msgLimit = 4096
@@ -195,7 +195,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		Era:       snap.GetEra(),
 		Pool:      poolAddressStr,
 		TxType:    stafiHubXLedgerTypes.TxTypeBond,
-		PropId:    proposalId,
+		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
 	return h.sendSubmitSignatureMsg(&submitSignature)
@@ -334,7 +334,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		Era:       snap.GetEra(),
 		Pool:      poolAddressStr,
 		TxType:    stafiHubXLedgerTypes.TxTypeClaim,
-		PropId:    proposalId,
+		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
 	return h.sendSubmitSignatureMsg(&submitSignature)
@@ -426,7 +426,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		Era:       snap.GetEra(),
 		Pool:      poolAddressStr,
 		TxType:    stafiHubXLedgerTypes.TxTypeTransfer,
-		PropId:    proposalId,
+		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
 	return h.sendSubmitSignatureMsg(&submitSignature)
@@ -463,7 +463,7 @@ func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
 		return err
 	}
 
-	proposalIdHexStr := hex.EncodeToString(eventSignatureEnouth.ProposalId)
+	proposalIdHexStr := eventSignatureEnouth.ProposalId
 	//if cached tx not exist,return false,not rebuild from proposalId
 	wrappedUnSignedTx, err := h.conn.GetWrappedUnsignedTx(proposalIdHexStr)
 	if err != nil {

@@ -16,7 +16,7 @@ import (
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/spf13/cobra"
-	"github.com/stafiprotocol/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/core"
 	tendermintTypes "github.com/tendermint/tendermint/types"
 )
 
