@@ -1,5 +1,7 @@
 package chain
 
+import "math/big"
+
 type ConfigOption struct {
 	BlockstorePath   string            `json:"blockstorePath"`
 	StartBlock       int               `json:"startBlock"`
@@ -8,5 +10,6 @@ type ConfigOption struct {
 	GasPrice         string            `json:"gasPrice"`
 	EraSeconds       int               `json:"eraSeconds"`
 	Pools            map[string]string `json:"pools"`
+	LeastBond        *big.Int          `json:"leastBond"`
 	TargetValidators []string          `json:"targetValidators"`
 }
