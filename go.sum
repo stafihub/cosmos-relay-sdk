@@ -1102,8 +1102,6 @@ github.com/ssgreg/nlreturn/v2 v2.1.0/go.mod h1:E/iiPB78hV7Szg2YfRgyIrk1AD6JVMTRk
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220210021838-4e8ffb210f39 h1:IKUiT9fX1vLcZ5HhboZK46WHuU7L/VkxOGqsKiu9Fqw=
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220210021838-4e8ffb210f39/go.mod h1:F3L38DIld+yqLo1dSaqeUeeSA4f3kC1oVNmy5w4/qig=
 github.com/stafihub/stafihub v0.0.0-20220209165340-5b4ac219fb84/go.mod h1:Kz6KCLISDVsQ+AmyiDr1TlqXU64MIwiFJoRCnwUTh4k=
-github.com/stafihub/stafihub v0.0.0-20220210144957-2f6b91215e65 h1:hN8QPNAVOS9foG6laM692xkN29woo4iLK2TmgB9OGq4=
-github.com/stafihub/stafihub v0.0.0-20220210144957-2f6b91215e65/go.mod h1:XRZTjAkYJfBH8TJwklvHvKXOHZPimnAm4OsnsUR3Zws=
 github.com/stafihub/stafihub v0.0.0-20220212155752-b41e78dd51e3 h1:7W4EEJzShnFggr+Fv++T7X+FiKmOescCW9BjpEIwarE=
 github.com/stafihub/stafihub v0.0.0-20220212155752-b41e78dd51e3/go.mod h1:XRZTjAkYJfBH8TJwklvHvKXOHZPimnAm4OsnsUR3Zws=
 github.com/stafiprotocol/chainbridge v1.0.0 h1:CT5ActFpHt4WEw+VvcCNw/bTLVrrnxK348ro5r0GMds=
