@@ -407,7 +407,7 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 		if correntSigNumber == threshold {
 			break
 		}
-		//check sequence
+		//check sequence, we use first sig's sequence as flag
 		if i == 0 {
 			useSequence = sig.Sequence
 		} else {

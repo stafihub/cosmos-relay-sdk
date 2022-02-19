@@ -34,8 +34,8 @@ func ShotIdToArray(shotId string) ([32]byte, error) {
 	return shotIdArray, nil
 }
 
-func GetBondUnBondProposalId(shotId [32]byte, bond, unbond *big.Int, seq uint64) []byte {
-	proposalId := make([]byte, 72)
+func GetBondUnBondProposalId(shotId [32]byte, bond, unbond *big.Int, index uint8) []byte {
+	proposalId := make([]byte, 65)
 	copy(proposalId, shotId[:])
 
 	bondBts := make([]byte, 16)
@@ -45,13 +45,12 @@ func GetBondUnBondProposalId(shotId [32]byte, bond, unbond *big.Int, seq uint64)
 	unbondBts := make([]byte, 16)
 	unbond.FillBytes(unbondBts)
 	copy(proposalId[48:], unbondBts)
-
-	binary.BigEndian.PutUint64(proposalId[64:], seq)
+	proposalId[64] = index
 	return proposalId
 }
 
-func ParseBondUnBondProposalId(content []byte) (shotId [32]byte, bond, unbond *big.Int, seq uint64, err error) {
-	if len(content) != 72 {
+func ParseBondUnBondProposalId(content []byte) (shotId [32]byte, bond, unbond *big.Int, index uint8, err error) {
+	if len(content) != 65 {
 		err = errors.New("cont length is not right")
 		return
 	}
@@ -60,31 +59,33 @@ func ParseBondUnBondProposalId(content []byte) (shotId [32]byte, bond, unbond *b
 	bond = new(big.Int).SetBytes(content[32:48])
 	unbond = new(big.Int).SetBytes(content[48:64])
 
-	seq = binary.BigEndian.Uint64(content[64:])
+	index = content[64]
 	return
 }
 
-func GetClaimRewardProposalId(shotId [32]byte, height uint64) []byte {
-	proposalId := make([]byte, 40)
+func GetClaimRewardProposalId(shotId [32]byte, height uint64, index uint8) []byte {
+	proposalId := make([]byte, 41)
 	copy(proposalId, shotId[:])
 	binary.BigEndian.PutUint64(proposalId[32:], height)
+	proposalId[40] = index
 	return proposalId
 }
 
-func ParseClaimRewardProposalId(content []byte) (shotId [32]byte, height uint64, err error) {
-	if len(content) != 40 {
+func ParseClaimRewardProposalId(content []byte) (shotId [32]byte, height uint64, index uint8, err error) {
+	if len(content) != 41 {
 		err = errors.New("cont length is not right")
 		return
 	}
 	copy(shotId[:], content[:32])
 	height = binary.BigEndian.Uint64(content[32:])
+	index = content[40]
 	return
 }
 
-func GetTransferProposalId(txHash [32]byte, seq uint64) []byte {
+func GetTransferProposalId(unSignTxHash [32]byte, index uint64) []byte {
 	proposalId := make([]byte, 40)
-	copy(proposalId, txHash[:])
-	binary.BigEndian.PutUint64(proposalId[32:], seq)
+	copy(proposalId, unSignTxHash[:])
+	binary.BigEndian.PutUint64(proposalId[32:], index)
 	return proposalId
 }
 
@@ -258,7 +259,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 			return nil, fmt.Errorf("validators have no reserve value to unbond")
 		}
 
-		//make val <= totalDelegateAmount-3*len and we revserve 3 uatom
+		//make val <= totalDelegateAmount-3*len and we reserve 3 uatom
 		val := unbond.Sub(unbond, bond)
 		willUsetotalDelegateAmount := totalDelegateAmount.Sub(types.NewInt(3 * int64(valAddrsLen)))
 		if val.Cmp(willUsetotalDelegateAmount.BigInt()) > 0 {
@@ -269,7 +270,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		//remove if unbonding >= 7
 		canUseValAddrs := make([]types.ValAddress, 0)
 		for _, val := range valAddrs {
-			res, err := client.QueryUnbondingDelegation(poolAddr, val, 0)
+			res, err := client.QueryUnbondingDelegation(poolAddr, val, height)
 			if err != nil {
 				// unbonding empty case
 				if strings.Contains(err.Error(), "NotFound") {
@@ -461,7 +462,7 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	sigs *core.EventSignatureEnough, m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
+	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
 	retry := BlockRetryLimit
 	txHashHexStr := hex.EncodeToString(txHash)
 	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
@@ -471,8 +472,8 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	for {
 		if retry <= 0 {
 			h.log.Error("checkAndSend broadcast tx reach retry limit",
-				"pool address", sigs.Pool)
-			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s", sigs.Pool)
+				"pool address", poolAddressStr)
+			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s", poolAddressStr)
 		}
 		//check on chain
 		res, err := poolClient.QueryTxByHash(txHashHexStr)
@@ -494,7 +495,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		}
 
 		h.log.Info("checkAndSend success",
-			"pool address", sigs.Pool,
+			"pool address", poolAddressStr,
 			"tx type", wrappedUnSignedTx.Type,
 			"era", wrappedUnSignedTx.Era,
 			"txHash", txHashHexStr)
@@ -502,10 +503,8 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeBond: //bond or unbond
-			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
 		case stafiHubXLedgerTypes.TxTypeClaim: //claim and redelegate
-			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			total := types.NewInt(0)
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 			if err != nil {
@@ -522,11 +521,10 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			}
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
 		case stafiHubXLedgerTypes.TxTypeTransfer: //transfer unbond token to user
-			h.conn.RemoveUnsignedTx(wrappedUnSignedTx.Key)
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
 		default:
 			h.log.Warn("checkAndSend failed,unknown unsigned tx type",
-				"pool", sigs.Pool,
+				"pool", poolAddressStr,
 				"type", wrappedUnSignedTx.Type)
 			return nil
 		}
@@ -587,4 +585,76 @@ func (h *Handler) sendSubmitSignatureMsg(submitSignature *core.ParamSubmitSignat
 		Content:     *submitSignature,
 	}
 	return h.router.Send(&m)
+}
+
+func bytesArrayToStr(bts [][]byte) string {
+	ret := ""
+	for _, b := range bts {
+		ret += " | "
+		ret += hex.EncodeToString(b)
+	}
+	return ret
+}
+
+func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature, threshold uint32) (signatures [][]byte, err error) {
+	retry := 0
+	for {
+		if retry > BlockRetryLimit {
+			return nil, fmt.Errorf("getSignatureFromStafiHub reach retry limit")
+		}
+		sigs, err := h.getSignatureFromStafiHub(param)
+		if err != nil {
+			retry++
+			h.log.Warn("getSignatureFromStafiHub failed, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		if len(sigs) < int(threshold) {
+			retry++
+			h.log.Warn("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		return sigs, nil
+	}
+}
+
+func (h *Handler) getSignatureFromStafiHub(param *core.ParamSubmitSignature) (signatures [][]byte, err error) {
+	getSignatures := core.ParamGetSignatures{
+		Denom:  param.Denom,
+		Era:    param.Era,
+		Pool:   param.Pool,
+		TxType: param.TxType,
+		PropId: param.PropId,
+		Sigs:   make(chan []string, 1),
+	}
+	msg := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonGetSignatures,
+		Content:     getSignatures,
+	}
+	err = h.router.Send(&msg)
+	if err != nil {
+		return nil, err
+	}
+
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+
+	h.log.Debug("wait getSignature from stafihub", "rSymbol", h.conn.symbol)
+	select {
+	case <-timer.C:
+		return nil, fmt.Errorf("get signatures from stafihub timeout")
+	case sigs := <-getSignatures.Sigs:
+
+		for _, sig := range sigs {
+			sigBts, err := hex.DecodeString(sig)
+			if err != nil {
+				return nil, fmt.Errorf("sig hex.DecodeString failed, err: %s, sig: %s", err, sig)
+			}
+			signatures = append(signatures, sigBts)
+		}
+		return signatures, nil
+	}
 }

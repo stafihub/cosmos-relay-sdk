@@ -140,7 +140,8 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		bonder, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
 			done()
-			return err
+			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
+			return nil
 		}
 		bonderStr := bonder.String()
 		done()
@@ -169,7 +170,8 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		bonder, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
 			done()
-			return err
+			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
+			return nil
 		}
 		bonderStr := bonder.String()
 		done()

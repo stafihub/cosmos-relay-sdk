@@ -19,7 +19,6 @@ var (
 type Listener struct {
 	name       string
 	symbol     core.RSymbol
-	pools      map[string]bool
 	startBlock uint64
 	blockstore blockstore.Blockstorer
 	conn       *Connection
@@ -30,10 +29,10 @@ type Listener struct {
 }
 
 func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs blockstore.Blockstorer, conn *Connection, log log15.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
+
 	return &Listener{
 		name:       name,
 		symbol:     symbol,
-		pools:      make(map[string]bool),
 		startBlock: startBlock,
 		blockstore: bs,
 		conn:       conn,
@@ -62,37 +61,6 @@ func (l *Listener) start() error {
 
 	if latestBlk < int64(l.startBlock) {
 		return fmt.Errorf("starting block (%d) is greater than latest known block (%d)", l.startBlock, latestBlk)
-	}
-
-	getPools := core.ParamGetPools{
-		Denom: string(l.symbol),
-		Pools: make(chan []string, 1),
-	}
-	msg := core.Message{
-		Source:      l.symbol,
-		Destination: core.HubRFIS,
-		Reason:      core.ReasonGetPools,
-		Content:     getPools,
-	}
-	err = l.router.Send(&msg)
-	if err != nil {
-		return err
-	}
-
-	timer := time.NewTimer(10 * time.Second)
-	defer timer.Stop()
-
-	l.log.Debug("wait getpools from stafihub", "rSymbol", l.symbol)
-	select {
-	case <-timer.C:
-		return fmt.Errorf("get pools from stafihub timeout")
-	case pools := <-getPools.Pools:
-		if len(pools) == 0 {
-			return fmt.Errorf("no pools in stafihub")
-		}
-		for _, p := range pools {
-			l.pools[p] = true
-		}
 	}
 
 	go func() {
@@ -201,7 +169,8 @@ func (l *Listener) submitMessage(m *core.Message) error {
 }
 
 func (l *Listener) hasPool(p string) bool {
-	return l.pools[p]
+	_, exist := l.conn.poolClients[p]
+	return exist
 }
 
 func (l *Listener) processEra() error {

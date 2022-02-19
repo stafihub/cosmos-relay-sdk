@@ -80,8 +80,6 @@ func (h *Handler) handleMessage(m *core.Message) error {
 		return h.handleBondReportedEvent(m)
 	case core.ReasonActiveReportedEvent:
 		return h.handleActiveReportedEvent(m)
-	case core.ReasonSignatureEnoughEvent:
-		return h.handleSignatureEnoughEvent(m)
 	default:
 		return fmt.Errorf("message reason unsupported reason: %s", m.Reason)
 	}
@@ -107,6 +105,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
+	threshold := h.conn.poolThreshold[poolAddressStr]
 
 	//get poolClient of this pool address
 	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
@@ -165,7 +164,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		return err
 	}
 	//cache unSignedTx
-	proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), seq)
+	proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), 0)
 	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
@@ -175,8 +174,6 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		Unbond:     snap.Chunk.Unbond.BigInt(),
 		Key:        proposalIdHexStr,
 		Type:       stafiHubXLedgerTypes.TxTypeBond}
-
-	h.conn.CacheUnsignedTx(proposalIdHexStr, &wrapUnsignedTx)
 
 	if bondCmpUnbondResult > 0 {
 		h.log.Info("processEraPoolUpdatedEvt gen unsigned bond Tx",
@@ -198,7 +195,26 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
-	return h.sendSubmitSignatureMsg(&submitSignature)
+	err = h.sendSubmitSignatureMsg(&submitSignature)
+	if err != nil {
+		return err
+	}
+	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+	if err != nil {
+		return err
+	}
+	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+	if err != nil {
+		h.log.Error("processEraPoolUpdatedEvt AssembleMultiSigTx failed",
+			"pool address ", poolAddressStr,
+			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+			"signatures", bytesArrayToStr(signatures),
+			"threshold", threshold,
+			"err", err)
+		return fmt.Errorf("assemble multisigTx failed")
+	}
+
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
 
 //handle bondReportEvent from stafihub
@@ -227,6 +243,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
+	threshold := h.conn.poolThreshold[poolAddressStr]
 
 	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
@@ -289,12 +306,12 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return err
 	}
 
-	shotIdBts, err := ShotIdToArray(eventBondReported.ShotId)
+	shotIdArray, err := ShotIdToArray(eventBondReported.ShotId)
 	if err != nil {
 		return err
 	}
 	//cache unSignedTx
-	proposalId := GetClaimRewardProposalId(shotIdBts, uint64(height))
+	proposalId := GetClaimRewardProposalId(shotIdArray, uint64(height), 0)
 	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
@@ -337,7 +354,26 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
-	return h.sendSubmitSignatureMsg(&submitSignature)
+	err = h.sendSubmitSignatureMsg(&submitSignature)
+	if err != nil {
+		return err
+	}
+	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+	if err != nil {
+		return err
+	}
+	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+	if err != nil {
+		h.log.Error("processBondReportEvent AssembleMultiSigTx failed",
+			"pool address ", poolAddressStr,
+			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+			"signatures", bytesArrayToStr(signatures),
+			"threshold", threshold,
+			"err", err)
+		return fmt.Errorf("assemble multisigTx failed")
+	}
+
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
 
 //handle activeReportedEvent from stafihub
@@ -361,6 +397,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
+	threshold := h.conn.poolThreshold[poolAddressStr]
 
 	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
 	if err != nil {
@@ -402,7 +439,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	}
 
 	//cache unSignedTx
-	proposalId := GetTransferProposalId(utils.BlakeTwo256(unSignedTx), seq)
+	proposalId := GetTransferProposalId(utils.BlakeTwo256(unSignedTx), 0)
 	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
@@ -429,80 +466,24 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		PropId:    proposalIdHexStr,
 		Signature: hex.EncodeToString(sigBts),
 	}
-	return h.sendSubmitSignatureMsg(&submitSignature)
-}
-
-//handle SignatureEnough event
-//1 assemble unsigned tx and signatures
-//2 send tx to cosmos until it is confirmed or reach the retry limit
-//3 (1)bondUnbond type: report bond result to stafihub
-//	(2)claimThenDelegate type: report active to stafihub
-//	(3)transfer type: report transfer to stafihub
-//  (4)redegate type:rm cached unsigned tx
-func (h *Handler) handleSignatureEnoughEvent(m *core.Message) error {
-	h.log.Info("handleSignatureEnoughEvent", "msg", m)
-	eventSignatureEnouth, ok := m.Content.(core.EventSignatureEnough)
-	if !ok {
-		return fmt.Errorf("EventSignatureEnough cast failed, %+v", m)
-	}
-
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
-	poolAddress, err := types.AccAddressFromBech32(eventSignatureEnouth.Pool)
+	err = h.sendSubmitSignatureMsg(&submitSignature)
 	if err != nil {
-		done()
 		return err
 	}
-	poolAddressStr := poolAddress.String()
-	done()
-
-	poolClient, err := h.conn.GetPoolClient(eventSignatureEnouth.Pool)
+	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
 	if err != nil {
-		h.log.Error("processSignatureEnoughEvt failed",
-			"pool address", poolAddressStr,
-			"error", err)
 		return err
 	}
-
-	proposalIdHexStr := eventSignatureEnouth.ProposalId
-	//if cached tx not exist,return false,not rebuild from proposalId
-	wrappedUnSignedTx, err := h.conn.GetWrappedUnsignedTx(proposalIdHexStr)
+	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
 	if err != nil {
-		h.log.Warn("handleSignatureEnoughEvent GetWrappedUnsignedTx,failed",
-			"proposalId", proposalIdHexStr,
-			"err", err)
-		//now skip if not found
-		return nil
-	}
-
-	if wrappedUnSignedTx.Type != stafiHubXLedgerTypes.TxTypeBond &&
-		wrappedUnSignedTx.Type != stafiHubXLedgerTypes.TxTypeClaim &&
-		wrappedUnSignedTx.Type != stafiHubXLedgerTypes.TxTypeTransfer &&
-		wrappedUnSignedTx.Type != stafiHubXLedgerTypes.TxTypeWithdraw {
-		h.log.Error("processSignatureEnoughEvt failed,unknown unsigned tx type",
-			"proposalId", proposalIdHexStr,
-			"type", wrappedUnSignedTx.Type)
-		return fmt.Errorf("un konwn unsigned tx type")
-	}
-
-	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrappedUnSignedTx.UnsignedTx, eventSignatureEnouth.Signatures, eventSignatureEnouth.Threshold)
-	if err != nil {
-		h.log.Error("processSignatureEnoughEvt AssembleMultiSigTx failed",
+		h.log.Error("processActiveReportedEvent AssembleMultiSigTx failed",
 			"pool address ", poolAddressStr,
-			"unsignedTx", hex.EncodeToString(wrappedUnSignedTx.UnsignedTx),
-			"signatures", bytesArrayToStr(eventSignatureEnouth.Signatures),
-			"threshold", eventSignatureEnouth.Threshold,
+			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+			"signatures", bytesArrayToStr(signatures),
+			"threshold", threshold,
 			"err", err)
 		return fmt.Errorf("assemble multisigTx failed")
 	}
 
-	return h.checkAndSend(poolClient, wrappedUnSignedTx, &eventSignatureEnouth, m, txHash, txBts, poolAddress)
-}
-
-func bytesArrayToStr(bts [][]byte) string {
-	ret := ""
-	for _, b := range bts {
-		ret += " | "
-		ret += hex.EncodeToString(b)
-	}
-	return ret
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }

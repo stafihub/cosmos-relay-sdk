@@ -21,7 +21,7 @@ var (
 		Denom:          "stake",
 		GasPrice:       "0.0001stake",
 		EraSeconds:     1000,
-		Pools: map[string]string{
+		PoolNameSubKey: map[string]string{
 			"multisig1": "key1",
 		},
 	}

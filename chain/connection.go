@@ -20,10 +20,11 @@ import (
 type Connection struct {
 	symbol           core.RSymbol
 	eraSeconds       int64
-	poolClients      map[string]*hubClient.Client //map[pool address]subClient
+	poolClients      map[string]*hubClient.Client // map[pool address]subClient
 	poolSubKey       map[string]string            // map[pool address]subkey
+	poolThreshold    map[string]uint32            // map[pool address]threshold
 	log              log15.Logger
-	cachedUnsignedTx map[string]*WrapUnsignedTx //map[hash(unsignedTx)]unsignedTx
+	cachedUnsignedTx map[string]*WrapUnsignedTx // map[hash(unsignedTx)]unsignedTx
 	mtx              sync.RWMutex
 }
 
@@ -46,7 +47,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 	poolClients := make(map[string]*hubClient.Client)
 	poolSubkey := make(map[string]string)
 
-	for poolName, subKeyName := range option.Pools {
+	for poolName, subKeyName := range option.PoolNameSubKey {
 		poolInfo, err := key.Key(poolName)
 		if err != nil {
 			return nil, err
@@ -55,9 +56,14 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		if err != nil {
 			return nil, err
 		}
+
 		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
-		poolClients[poolInfo.GetAddress().String()] = poolClient
-		poolSubkey[poolInfo.GetAddress().String()] = subKeyName
+		poolAddress := poolInfo.GetAddress().String()
+		poolClients[poolAddress] = poolClient
+		poolSubkey[poolAddress] = subKeyName
+		if _, exist := option.PoolAddressThreshold[poolAddress]; !exist {
+			return nil, fmt.Errorf("no pool detail info in stafihub, pool: %s", poolAddress)
+		}
 		done()
 	}
 	if len(poolClients) == 0 {
@@ -69,6 +75,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		eraSeconds:       int64(option.EraSeconds),
 		poolClients:      poolClients,
 		poolSubKey:       poolSubkey,
+		poolThreshold:    option.PoolAddressThreshold,
 		log:              log,
 		cachedUnsignedTx: make(map[string]*WrapUnsignedTx),
 	}
@@ -114,6 +121,8 @@ func (pc *Connection) RemoveUnsignedTx(key string) {
 func (pc *Connection) CachedUnsignedTxNumber() int {
 	return len(pc.cachedUnsignedTx)
 }
+
+
 
 func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	targetTimestamp := int64(era) * pc.eraSeconds
