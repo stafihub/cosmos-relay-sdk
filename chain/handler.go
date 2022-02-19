@@ -85,10 +85,15 @@ func (h *Handler) handleMessage(m *core.Message) error {
 	}
 }
 
-//handle eraPoolUpdate event
-//1 gen bond/unbond multiSig unsigned tx and cache it
-//2 sign it with subKey
-//3 send signature to stafihub
+// handle eraPoolUpdated event
+// 1
+//   1) bond>unbond, gen bond multiSig unsigned tx
+//   2) bond<unbond, gen unbond multiSig unsigned tx
+//   3) bond==unbond, no need bond/unbond, just bondreport to stafihub
+// 2 sign it with subKey
+// 3 send signature to stafihub
+// 4 wait until signature enough, then send tx to cosmoshub
+// 5 bond report to stafihub
 func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	h.log.Info("handleEraPoolUpdatedEvent", "msg", m)
 	eventEraPoolUpdated, ok := m.Content.(core.EventEraPoolUpdated)
@@ -163,7 +168,6 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	if err != nil {
 		return err
 	}
-	//cache unSignedTx
 	proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), 0)
 	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
@@ -217,13 +221,15 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
 
-//handle bondReportEvent from stafihub
-//1 query reward on era height,
-//	(1) if no reward, just send active report
-//	(2) if has reward
-//		1) gen (claim reward && delegate) or (claim reward) unsigned tx and cache it
-//		2) sign it with subKey
-//		3) send signature to stafihub
+// handle bondReportedEvent from stafihub
+// 1 query reward on era height,
+//   1) if no reward, just send active report to stafihub
+//   2) if has reward
+//     1) gen (claim reward && delegate) or (claim reward) unsigned tx
+//     2) sign it with subKey
+//     3) send signature to stafihub
+//     4) wait until signature enough and send tx to cosmoshub
+//     5) active report to stafihub
 func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	h.log.Info("handleBondReportedEvent", "msg", m)
 	eventBondReported, ok := m.Content.(core.EventBondReported)
@@ -322,8 +328,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		Unbond:     snap.Chunk.Unbond.BigInt(),
 		Type:       stafiHubXLedgerTypes.TxTypeClaim}
 
-	h.conn.CacheUnsignedTx(proposalIdHexStr, &wrapUnsignedTx)
-
 	switch genTxType {
 	case 1:
 		h.log.Info("processBondReportEvent gen unsigned claim reward Tx",
@@ -376,10 +380,14 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
 
-//handle activeReportedEvent from stafihub
-//1 gen transfer  unsigned tx and cache it
-//2 sign it with subKey
-//3 send signature to stafihub
+// handle activeReportedEvent from stafihub
+// 1
+//   1) if no transfer info, just transfer report to stafihub
+//   2) has transfer info, gen transfer unsigned tx
+// 2 sign it with subKey
+// 3 send signature to stafihub
+// 4 wait until signature enough and send tx to cosmoshub
+// 5 transfer report to stafihub
 func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	h.log.Info("handleActiveReportedEvent", "msg", m)
 
@@ -447,8 +455,6 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		SnapshotId: eventActiveReported.ShotId,
 		Era:        snap.Era,
 		Type:       stafiHubXLedgerTypes.TxTypeTransfer}
-
-	h.conn.CacheUnsignedTx(proposalIdHexStr, &wrapUnsignedTx)
 
 	h.log.Info("processActiveReportedEvent gen unsigned transfer Tx",
 		"pool address", poolAddressStr,

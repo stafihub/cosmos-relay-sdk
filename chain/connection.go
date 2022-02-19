@@ -6,7 +6,6 @@ import (
 	"math/big"
 	"os"
 	"sort"
-	"sync"
 
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -18,14 +17,12 @@ import (
 )
 
 type Connection struct {
-	symbol           core.RSymbol
-	eraSeconds       int64
-	poolClients      map[string]*hubClient.Client // map[pool address]subClient
-	poolSubKey       map[string]string            // map[pool address]subkey
-	poolThreshold    map[string]uint32            // map[pool address]threshold
-	log              log15.Logger
-	cachedUnsignedTx map[string]*WrapUnsignedTx // map[hash(unsignedTx)]unsignedTx
-	mtx              sync.RWMutex
+	symbol        core.RSymbol
+	eraSeconds    int64
+	poolClients   map[string]*hubClient.Client // map[pool address]subClient
+	poolSubKey    map[string]string            // map[pool address]subkey
+	poolThreshold map[string]uint32            // map[pool address]threshold
+	log           log15.Logger
 }
 
 type WrapUnsignedTx struct {
@@ -71,13 +68,12 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 	}
 
 	c := Connection{
-		symbol:           core.RSymbol(cfg.Rsymbol),
-		eraSeconds:       int64(option.EraSeconds),
-		poolClients:      poolClients,
-		poolSubKey:       poolSubkey,
-		poolThreshold:    option.PoolAddressThreshold,
-		log:              log,
-		cachedUnsignedTx: make(map[string]*WrapUnsignedTx),
+		symbol:        core.RSymbol(cfg.Rsymbol),
+		eraSeconds:    int64(option.EraSeconds),
+		poolClients:   poolClients,
+		poolSubKey:    poolSubkey,
+		poolThreshold: option.PoolAddressThreshold,
+		log:           log,
 	}
 	return &c, nil
 }
@@ -97,32 +93,6 @@ func (c *Connection) GetPoolClient(poolAddr string) (*hubClient.Client, error) {
 	}
 	return nil, errors.New("subClient of this pool not exist")
 }
-
-func (pc *Connection) CacheUnsignedTx(key string, tx *WrapUnsignedTx) {
-	pc.mtx.Lock()
-	pc.cachedUnsignedTx[key] = tx
-	pc.mtx.Unlock()
-}
-func (pc *Connection) GetWrappedUnsignedTx(key string) (*WrapUnsignedTx, error) {
-	pc.mtx.RLock()
-	defer pc.mtx.RUnlock()
-	if tx, exist := pc.cachedUnsignedTx[key]; exist {
-		return tx, nil
-	}
-	return nil, errors.New("unsignedTx of this key not exist")
-}
-
-func (pc *Connection) RemoveUnsignedTx(key string) {
-	pc.mtx.Lock()
-	delete(pc.cachedUnsignedTx, key)
-	pc.mtx.Unlock()
-}
-
-func (pc *Connection) CachedUnsignedTxNumber() int {
-	return len(pc.cachedUnsignedTx)
-}
-
-
 
 func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	targetTimestamp := int64(era) * pc.eraSeconds
