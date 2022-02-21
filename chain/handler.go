@@ -145,77 +145,85 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-
-	//use current seq
-	seq, err := poolClient.GetSequence(0, poolAddress)
-	if err != nil {
-		h.log.Error("GetSequence failed",
-			"pool address", poolAddressStr,
-			"err", err)
-		return err
-	}
-
-	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
-	if err != nil {
-		h.log.Error("SignMultiSigRawTxWithSeq failed",
-			"pool address", poolAddressStr,
-			"unsignedTx", string(unSignedTx),
-			"err", err)
-		return err
-	}
-
-	shotIdArray, err := ShotIdToArray(eventEraPoolUpdated.ShotId)
-	if err != nil {
-		return err
-	}
-	proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), 0)
-	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
 		SnapshotId: eventEraPoolUpdated.ShotId,
 		Era:        snap.Era,
 		Bond:       snap.Chunk.Bond.BigInt(),
 		Unbond:     snap.Chunk.Unbond.BigInt(),
-		Key:        proposalIdHexStr,
 		Type:       stafiHubXLedgerTypes.TxTypeBond}
 
-	if bondCmpUnbondResult > 0 {
-		h.log.Info("processEraPoolUpdatedEvt gen unsigned bond Tx",
-			"pool address", poolAddressStr,
-			"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
-			"proposalId", proposalIdHexStr)
-	} else {
-		h.log.Info("processEraPoolUpdatedEvt gen unsigned unbond Tx",
-			"pool address", poolAddressStr,
-			"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
-			"proposalId", proposalIdHexStr)
-	}
-	// send signature to stafihub
-	submitSignature := core.ParamSubmitSignature{
-		Denom:     snap.GetDenom(),
-		Era:       snap.GetEra(),
-		Pool:      poolAddressStr,
-		TxType:    stafiHubXLedgerTypes.TxTypeBond,
-		PropId:    proposalIdHexStr,
-		Signature: hex.EncodeToString(sigBts),
-	}
-	err = h.sendSubmitSignatureMsg(&submitSignature)
-	if err != nil {
-		return err
-	}
-	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
-	if err != nil {
-		return err
-	}
-	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
-	if err != nil {
-		h.log.Error("processEraPoolUpdatedEvt AssembleMultiSigTx failed",
-			"pool address ", poolAddressStr,
-			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
-			"signatures", bytesArrayToStr(signatures),
-			"threshold", threshold,
-			"err", err)
-		return fmt.Errorf("assemble multisigTx failed")
+	var txHash, txBts []byte
+	for i := 0; i < 5; i++ {
+		//use current seq
+		seq, err := poolClient.GetSequence(0, poolAddress)
+		if err != nil {
+			h.log.Error("GetSequence failed",
+				"pool address", poolAddressStr,
+				"err", err)
+			return err
+		}
+
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		if err != nil {
+			h.log.Error("SignMultiSigRawTxWithSeq failed",
+				"pool address", poolAddressStr,
+				"unsignedTx", string(unSignedTx),
+				"err", err)
+			return err
+		}
+
+		shotIdArray, err := ShotIdToArray(eventEraPoolUpdated.ShotId)
+		if err != nil {
+			return err
+		}
+
+		proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), uint8(i))
+		proposalIdHexStr := hex.EncodeToString(proposalId)
+
+		if bondCmpUnbondResult > 0 {
+			h.log.Info("processEraPoolUpdatedEvt gen unsigned bond Tx",
+				"pool address", poolAddressStr,
+				"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
+				"proposalId", proposalIdHexStr)
+		} else {
+			h.log.Info("processEraPoolUpdatedEvt gen unsigned unbond Tx",
+				"pool address", poolAddressStr,
+				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
+				"proposalId", proposalIdHexStr)
+		}
+		// send signature to stafihub
+		submitSignature := core.ParamSubmitSignature{
+			Denom:     snap.GetDenom(),
+			Era:       snap.GetEra(),
+			Pool:      poolAddressStr,
+			TxType:    stafiHubXLedgerTypes.TxTypeBond,
+			PropId:    proposalIdHexStr,
+			Signature: hex.EncodeToString(sigBts),
+		}
+		err = h.sendSubmitSignatureMsg(&submitSignature)
+		if err != nil {
+			return err
+		}
+		signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+		if err != nil {
+			return err
+		}
+		txHash, txBts, err = poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+		if err != nil {
+			h.log.Error("processEraPoolUpdatedEvt AssembleMultiSigTx failed",
+				"pool address ", poolAddressStr,
+				"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+				"signatures", bytesArrayToStr(signatures),
+				"threshold", threshold,
+				"err", err)
+			return fmt.Errorf("assemble multisigTx failed")
+		}
+		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
+		if err == nil && res.Code != 0 {
+			continue
+		}
+		break
 	}
 
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
@@ -274,6 +282,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
+
 	//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
 	if err == hubClient.ErrNoMsgs {
 		total := types.NewInt(0)
@@ -293,88 +302,95 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
-
-	//use current seq
-	seq, err := poolClient.GetSequence(0, poolAddress)
-	if err != nil {
-		h.log.Error("GetSequence failed",
-			"pool address", poolAddressStr,
-			"err", err)
-		return err
-	}
-
-	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
-	if err != nil {
-		h.log.Error("SignMultiSigRawTx failed",
-			"pool address", poolAddressStr,
-			"unsignedTx", string(unSignedTx),
-			"err", err)
-		return err
-	}
-
-	shotIdArray, err := ShotIdToArray(eventBondReported.ShotId)
-	if err != nil {
-		return err
-	}
-	//cache unSignedTx
-	proposalId := GetClaimRewardProposalId(shotIdArray, uint64(height), 0)
-	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
-		Key:        proposalIdHexStr,
 		SnapshotId: eventBondReported.ShotId,
 		Era:        snap.Era,
 		Bond:       snap.Chunk.Bond.BigInt(),
 		Unbond:     snap.Chunk.Unbond.BigInt(),
 		Type:       stafiHubXLedgerTypes.TxTypeClaim}
 
-	switch genTxType {
-	case 1:
-		h.log.Info("processBondReportEvent gen unsigned claim reward Tx",
-			"pool address", poolAddressStr,
-			"total delegate amount", totalDeleAmount.String(),
-			"proposalId", proposalIdHexStr)
+	var txHash, txBts []byte
+	for i := 0; i < 5; i++ {
+		//use current seq
+		seq, err := poolClient.GetSequence(0, poolAddress)
+		if err != nil {
+			h.log.Error("GetSequence failed",
+				"pool address", poolAddressStr,
+				"err", err)
+			return err
+		}
 
-	case 2:
-		h.log.Info("processBondReportEvent gen unsigned delegate reward Tx",
-			"pool address", poolAddressStr,
-			"total delegate amount", totalDeleAmount.String(),
-			"proposalId", proposalIdHexStr)
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		if err != nil {
+			h.log.Error("SignMultiSigRawTx failed",
+				"pool address", poolAddressStr,
+				"unsignedTx", string(unSignedTx),
+				"err", err)
+			return err
+		}
 
-	case 3:
-		h.log.Info("processBondReportEvent gen unsigned claim and delegate reward Tx",
-			"pool address", poolAddressStr,
-			"total delegate amount", totalDeleAmount.String(),
-			"proposalId", proposalIdHexStr)
+		shotIdArray, err := ShotIdToArray(eventBondReported.ShotId)
+		if err != nil {
+			return err
+		}
+		//cache unSignedTx
+		proposalId := GetClaimRewardProposalId(shotIdArray, uint64(height), uint8(i))
+		proposalIdHexStr := hex.EncodeToString(proposalId)
 
-	}
+		switch genTxType {
+		case 1:
+			h.log.Info("processBondReportEvent gen unsigned claim reward Tx",
+				"pool address", poolAddressStr,
+				"total delegate amount", totalDeleAmount.String(),
+				"proposalId", proposalIdHexStr)
 
-	// send signature to stafi
-	submitSignature := core.ParamSubmitSignature{
-		Denom:     snap.GetDenom(),
-		Era:       snap.GetEra(),
-		Pool:      poolAddressStr,
-		TxType:    stafiHubXLedgerTypes.TxTypeClaim,
-		PropId:    proposalIdHexStr,
-		Signature: hex.EncodeToString(sigBts),
-	}
-	err = h.sendSubmitSignatureMsg(&submitSignature)
-	if err != nil {
-		return err
-	}
-	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
-	if err != nil {
-		return err
-	}
-	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
-	if err != nil {
-		h.log.Error("processBondReportEvent AssembleMultiSigTx failed",
-			"pool address ", poolAddressStr,
-			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
-			"signatures", bytesArrayToStr(signatures),
-			"threshold", threshold,
-			"err", err)
-		return fmt.Errorf("assemble multisigTx failed")
+		case 2:
+			h.log.Info("processBondReportEvent gen unsigned delegate reward Tx",
+				"pool address", poolAddressStr,
+				"total delegate amount", totalDeleAmount.String(),
+				"proposalId", proposalIdHexStr)
+
+		case 3:
+			h.log.Info("processBondReportEvent gen unsigned claim and delegate reward Tx",
+				"pool address", poolAddressStr,
+				"total delegate amount", totalDeleAmount.String(),
+				"proposalId", proposalIdHexStr)
+
+		}
+
+		// send signature to stafi
+		submitSignature := core.ParamSubmitSignature{
+			Denom:     snap.GetDenom(),
+			Era:       snap.GetEra(),
+			Pool:      poolAddressStr,
+			TxType:    stafiHubXLedgerTypes.TxTypeClaim,
+			PropId:    proposalIdHexStr,
+			Signature: hex.EncodeToString(sigBts),
+		}
+		err = h.sendSubmitSignatureMsg(&submitSignature)
+		if err != nil {
+			return err
+		}
+		signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+		if err != nil {
+			return err
+		}
+		txHash, txBts, err = poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+		if err != nil {
+			h.log.Error("processBondReportEvent AssembleMultiSigTx failed",
+				"pool address ", poolAddressStr,
+				"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+				"signatures", bytesArrayToStr(signatures),
+				"threshold", threshold,
+				"err", err)
+			return fmt.Errorf("assemble multisigTx failed")
+		}
+		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
+		if err == nil && res.Code != 0 {
+			continue
+		}
+		break
 	}
 
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
@@ -427,69 +443,75 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 			"snapId", eventActiveReported.ShotId)
 		return h.sendTransferReportMsg(eventActiveReported.ShotId)
 	}
-
-	//use current seq
-	seq, err := poolClient.GetSequence(0, poolAddress)
-	if err != nil {
-		h.log.Error("GetSequence failed",
-			"pool address", poolAddressStr,
-			"err", err)
-		return err
-	}
-
-	sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
-	if err != nil {
-		h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
-			"pool address", poolAddressStr,
-			"unsignedTx", string(unSignedTx),
-			"err", err)
-		return err
-	}
-
-	//cache unSignedTx
-	proposalId := GetTransferProposalId(utils.BlakeTwo256(unSignedTx), 0)
-	proposalIdHexStr := hex.EncodeToString(proposalId)
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
-		Key:        proposalIdHexStr,
 		SnapshotId: eventActiveReported.ShotId,
 		Era:        snap.Era,
 		Type:       stafiHubXLedgerTypes.TxTypeTransfer}
 
-	h.log.Info("processActiveReportedEvent gen unsigned transfer Tx",
-		"pool address", poolAddressStr,
-		"out put", outPuts,
-		"proposalId", proposalIdHexStr,
-		"unsignedTx", hex.EncodeToString(unSignedTx),
-		"signature", hex.EncodeToString(sigBts))
+	var txHash, txBts []byte
+	for i := 0; i < 5; i++ {
+		//use current seq
+		seq, err := poolClient.GetSequence(0, poolAddress)
+		if err != nil {
+			h.log.Error("GetSequence failed",
+				"pool address", poolAddressStr,
+				"err", err)
+			return err
+		}
 
-	// send to stafihub
-	submitSignature := core.ParamSubmitSignature{
-		Denom:     snap.GetDenom(),
-		Era:       snap.GetEra(),
-		Pool:      poolAddressStr,
-		TxType:    stafiHubXLedgerTypes.TxTypeTransfer,
-		PropId:    proposalIdHexStr,
-		Signature: hex.EncodeToString(sigBts),
-	}
-	err = h.sendSubmitSignatureMsg(&submitSignature)
-	if err != nil {
-		return err
-	}
-	signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
-	if err != nil {
-		return err
-	}
-	txHash, txBts, err := poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
-	if err != nil {
-		h.log.Error("processActiveReportedEvent AssembleMultiSigTx failed",
-			"pool address ", poolAddressStr,
-			"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
-			"signatures", bytesArrayToStr(signatures),
-			"threshold", threshold,
-			"err", err)
-		return fmt.Errorf("assemble multisigTx failed")
-	}
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		if err != nil {
+			h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
+				"pool address", poolAddressStr,
+				"unsignedTx", string(unSignedTx),
+				"err", err)
+			return err
+		}
 
+		//cache unSignedTx
+		proposalId := GetTransferProposalId(utils.BlakeTwo256(unSignedTx), uint8(i))
+		proposalIdHexStr := hex.EncodeToString(proposalId)
+
+		h.log.Info("processActiveReportedEvent gen unsigned transfer Tx",
+			"pool address", poolAddressStr,
+			"out put", outPuts,
+			"proposalId", proposalIdHexStr,
+			"unsignedTx", hex.EncodeToString(unSignedTx),
+			"signature", hex.EncodeToString(sigBts))
+
+		// send to stafihub
+		submitSignature := core.ParamSubmitSignature{
+			Denom:     snap.GetDenom(),
+			Era:       snap.GetEra(),
+			Pool:      poolAddressStr,
+			TxType:    stafiHubXLedgerTypes.TxTypeTransfer,
+			PropId:    proposalIdHexStr,
+			Signature: hex.EncodeToString(sigBts),
+		}
+		err = h.sendSubmitSignatureMsg(&submitSignature)
+		if err != nil {
+			return err
+		}
+		signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+		if err != nil {
+			return err
+		}
+		txHash, txBts, err = poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+		if err != nil {
+			h.log.Error("processActiveReportedEvent AssembleMultiSigTx failed",
+				"pool address ", poolAddressStr,
+				"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+				"signatures", bytesArrayToStr(signatures),
+				"threshold", threshold,
+				"err", err)
+			return fmt.Errorf("assemble multisigTx failed")
+		}
+		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
+		if err == nil && res.Code != 0 {
+			continue
+		}
+		break
+	}
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }

@@ -82,10 +82,10 @@ func ParseClaimRewardProposalId(content []byte) (shotId [32]byte, height uint64,
 	return
 }
 
-func GetTransferProposalId(unSignTxHash [32]byte, index uint64) []byte {
-	proposalId := make([]byte, 40)
+func GetTransferProposalId(unSignTxHash [32]byte, index uint8) []byte {
+	proposalId := make([]byte, 33)
 	copy(proposalId, unSignTxHash[:])
-	binary.BigEndian.PutUint64(proposalId[32:], index)
+	proposalId[32] = index
 	return proposalId
 }
 
@@ -353,7 +353,7 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 
 	bondCmpUnbond := bond.Cmp(unBond)
 
-	//check when we behind several eras,only bond==unbond we can check this
+	//check when we behind several eras, only bond==unbond we can check this
 	// if rewardAmount > rewardAmountNow no need claim and delegate just return ErrNoMsgs
 	if bondCmpUnbond == 0 {
 		//get reward of now
@@ -499,7 +499,6 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			"tx type", wrappedUnSignedTx.Type,
 			"era", wrappedUnSignedTx.Era,
 			"txHash", txHashHexStr)
-
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeBond: //bond or unbond
