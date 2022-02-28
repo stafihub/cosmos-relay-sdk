@@ -49,7 +49,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		if err != nil {
 			return nil, err
 		}
-		poolClient, err := hubClient.NewClient(key, option.ChainID, poolName, option.GasPrice, option.Denom, cfg.Endpoint)
+		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, cfg.Endpoint)
 		if err != nil {
 			return nil, err
 		}
@@ -110,6 +110,9 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	}
 
 	tmpTargetBlock := blockNumber - seconds/7
+	if tmpTargetBlock <= 0 {
+		tmpTargetBlock = 1
+	}
 
 	block, err := poolClient.QueryBlock(tmpTargetBlock)
 	if err != nil {
@@ -125,6 +128,9 @@ func (pc *Connection) GetHeightByEra(era uint32) (int64, error) {
 	if findDuTime > 7 || findDuTime < -7 {
 		tmpTargetBlock -= findDuTime / 7
 
+		if tmpTargetBlock <= 0 {
+			tmpTargetBlock = 1
+		}
 		block, err = poolClient.QueryBlock(tmpTargetBlock)
 		if err != nil {
 			return 0, err

@@ -9,8 +9,6 @@ type ConfigOption struct {
 	PoolNameSubKey map[string]string `json:"pools"`
 
 	// get from stafihub rparams
-	ChainID          string   `json:"chainId"`
-	Denom            string   `json:"denom"`
 	GasPrice         string   `json:"gasPrice"`
 	EraSeconds       int      `json:"eraSeconds"`
 	LeastBond        *big.Int `json:"leastBond"`

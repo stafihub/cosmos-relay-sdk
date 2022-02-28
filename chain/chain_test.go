@@ -17,8 +17,6 @@ var (
 	option = chain.ConfigOption{
 		BlockstorePath: "/Users/tpkeeper/gowork/stafi/rtoken-relay-core/blockstore",
 		StartBlock:     0,
-		ChainID:        "my-chain2",
-		Denom:          "stake",
 		GasPrice:       "0.0001stake",
 		EraSeconds:     1000,
 		PoolNameSubKey: map[string]string{
@@ -27,7 +25,6 @@ var (
 	}
 	cfg = config.RawChainConfig{
 		Name:         "testChain",
-		Type:         "cosmosHub",
 		Rsymbol:      "ratom2",
 		Endpoint:     "http://127.0.0.1:36657",
 		KeystorePath: "/Users/tpkeeper/.gaia",
