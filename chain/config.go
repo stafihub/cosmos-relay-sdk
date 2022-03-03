@@ -1,7 +1,5 @@
 package chain
 
-import "math/big"
-
 type ConfigOption struct {
 	// get from config file
 	BlockstorePath string            `json:"blockstorePath"`
@@ -11,7 +9,7 @@ type ConfigOption struct {
 	// get from stafihub rparams
 	GasPrice         string   `json:"gasPrice"`
 	EraSeconds       int      `json:"eraSeconds"`
-	LeastBond        *big.Int `json:"leastBond"`
+	LeastBond        string   `json:"leastBond"`
 	TargetValidators []string `json:"targetValidators"`
 
 	// get from stafihub pooldetail
