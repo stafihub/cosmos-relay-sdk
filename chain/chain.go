@@ -76,7 +76,12 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysE
 		return err
 	}
 
-	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), startBlk, bs, conn, logger, stop, sysErr)
+	leastBond, err := types.ParseCoinNormalized(option.LeastBond)
+	if err != nil {
+		return err
+	}
+
+	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), leastBond, startBlk, bs, conn, logger, stop, sysErr)
 	h := NewHandler(vals, conn, logger, stop, sysErr)
 
 	c.rSymbol = core.RSymbol(cfg.Rsymbol)

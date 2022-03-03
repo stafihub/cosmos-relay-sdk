@@ -68,8 +68,13 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		if err != nil {
 			return fmt.Errorf("amount format err, %s", err)
 		}
-		if coin.GetDenom() != client.GetDenom() {
-			return fmt.Errorf("transfer denom not equal,expect %s got %s", client.GetDenom(), coin.GetDenom())
+		if coin.GetDenom() != client.GetDenom() || coin.GetDenom() != l.leastBond.GetDenom() {
+			return fmt.Errorf("transfer denom not equal,expect %s got %s,leastBond denom: %s", client.GetDenom(), coin.GetDenom(), l.leastBond.GetDenom())
+		}
+
+		if !coin.IsGTE(l.leastBond) {
+			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "event", event)
+			return nil
 		}
 
 		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
