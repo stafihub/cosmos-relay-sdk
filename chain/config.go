@@ -5,6 +5,7 @@ type ConfigOption struct {
 	BlockstorePath string            `json:"blockstorePath"`
 	StartBlock     int               `json:"startBlock"`
 	PoolNameSubKey map[string]string `json:"pools"`
+	AccountPrefix  string            `json:"accountPrefix"`
 
 	// get from stafihub rparams
 	GasPrice         string   `json:"gasPrice"`

@@ -15,7 +15,7 @@ import (
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
 )
 
-const AccountPrefix = "cosmos"
+var AccountPrefix = "cosmos"
 
 //cosmos client
 type Client struct {
