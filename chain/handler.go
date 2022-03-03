@@ -129,7 +129,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
 	}
 
-	height, err := h.conn.GetHeightByEra(snap.Era)
+	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
 			"pool address", poolAddressStr,
@@ -266,7 +266,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"error", err)
 		return err
 	}
-	height, err := h.conn.GetHeightByEra(snap.Era)
+	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
 			"pool address", poolAddressStr,

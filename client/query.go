@@ -270,6 +270,87 @@ func (c *Client) QueryBondedDenom() (*xStakeTypes.QueryParamsResponse, error) {
 	return cc.(*xStakeTypes.QueryParamsResponse), nil
 }
 
+func (c *Client) GetHeightByEra(era uint32, eraSeconds int64) (int64, error) {
+	targetTimestamp := int64(era) * eraSeconds
+
+	blockNumber, timestamp, err := c.GetCurrentBLockAndTimestamp()
+	if err != nil {
+		return 0, err
+	}
+	// fmt.Println("cur blocknumber", blockNumber, "timestamp", timestamp, "targettimestamp", targetTimestamp)
+	seconds := timestamp - targetTimestamp
+	if seconds < 0 {
+		return 0, fmt.Errorf("timestamp can not less than targetTimestamp")
+	}
+
+	tmpTargetBlock := blockNumber - seconds/7
+	if tmpTargetBlock <= 0 {
+		tmpTargetBlock = 1
+	}
+
+	// fmt.Println("tmpTargetBLock", tmpTargetBlock)
+
+	block, err := c.QueryBlock(tmpTargetBlock)
+	if err != nil {
+		return 0, err
+	}
+
+	// findDuTime := block.Block.Header.Time.Unix() - targetTimestamp
+	// fmt.Println("findDuTime", findDuTime)
+
+	// if findDuTime == 0 {
+	// 	return block.Block.Height, nil
+	// }
+
+	// if findDuTime > 7 || findDuTime < -7 {
+	// 	tmpTargetBlock -= findDuTime / 7
+
+	// 	if tmpTargetBlock <= 0 {
+	// 		tmpTargetBlock = 1
+	// 	}
+	// 	block, err = c.QueryBlock(tmpTargetBlock)
+	// 	if err != nil {
+	// 		return 0, err
+	// 	}
+	// }
+
+	var afterBlockNumber int64
+	var preBlockNumber int64
+	if block.Block.Header.Time.Unix() > targetTimestamp {
+		afterBlockNumber = block.Block.Height
+		for {
+			// fmt.Println("block", afterBlockNumber-1)
+			block, err := c.QueryBlock(afterBlockNumber - 1)
+			if err != nil {
+				return 0, err
+			}
+			if block.Block.Time.Unix() > targetTimestamp {
+				afterBlockNumber = block.Block.Height
+			} else {
+				break
+			}
+		}
+
+	} else {
+		preBlockNumber = block.Block.Height
+		for {
+			// fmt.Println("block", preBlockNumber+1)
+			block, err := c.QueryBlock(preBlockNumber + 1)
+			if err != nil {
+				return 0, err
+			}
+			if block.Block.Time.Unix() > targetTimestamp {
+				afterBlockNumber = block.Block.Height
+				break
+			} else {
+				preBlockNumber = block.Block.Height
+			}
+		}
+	}
+
+	return afterBlockNumber, nil
+}
+
 func Retry(f func() (interface{}, error)) (interface{}, error) {
 	return retry(f)
 }
