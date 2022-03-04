@@ -6,9 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ChainSafe/log15"
-	"github.com/cosmos/cosmos-sdk/types"
 
-	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/config"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 )
@@ -45,21 +43,6 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysE
 		return err
 	}
 
-	if len(option.TargetValidators) == 0 {
-		return fmt.Errorf("targetValidators empty")
-	}
-	vals := make([]types.ValAddress, 0)
-	for _, val := range option.TargetValidators {
-		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
-		useVal, err := types.ValAddressFromBech32(val)
-		if err != nil {
-			done()
-			return err
-		}
-		done()
-		vals = append(vals, useVal)
-	}
-
 	conn, err := NewConnection(cfg, option, logger)
 	if err != nil {
 		return err
@@ -76,13 +59,8 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysE
 		return err
 	}
 
-	leastBond, err := types.ParseCoinNormalized(option.LeastBond)
-	if err != nil {
-		return err
-	}
-
-	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), leastBond, startBlk, bs, conn, logger, stop, sysErr)
-	h := NewHandler(vals, conn, logger, stop, sysErr)
+	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), startBlk, bs, conn, logger, stop, sysErr)
+	h := NewHandler(conn, logger, stop, sysErr)
 
 	c.rSymbol = core.RSymbol(cfg.Rsymbol)
 	c.listener = l

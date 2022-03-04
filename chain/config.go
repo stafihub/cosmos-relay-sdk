@@ -9,8 +9,9 @@ type ConfigOption struct {
 
 	// get from stafihub rparams
 	GasPrice         string   `json:"gasPrice"`
-	EraSeconds       int      `json:"eraSeconds"`
+	EraSeconds       string   `json:"eraSeconds"`
 	LeastBond        string   `json:"leastBond"`
+	Offset           string   `json:"offset"`
 	TargetValidators []string `json:"targetValidators"`
 
 	// get from stafihub pooldetail

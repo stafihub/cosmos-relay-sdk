@@ -18,7 +18,6 @@ var (
 		BlockstorePath: "/Users/tpkeeper/gowork/stafi/rtoken-relay-core/blockstore",
 		StartBlock:     0,
 		GasPrice:       "0.0001stake",
-		EraSeconds:     1000,
 		PoolNameSubKey: map[string]string{
 			"multisig1": "key1",
 		},

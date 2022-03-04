@@ -17,12 +17,19 @@ import (
 )
 
 type Connection struct {
+	RParams
 	symbol        core.RSymbol
-	eraSeconds    int64
 	poolClients   map[string]*hubClient.Client // map[pool address]subClient
 	poolSubKey    map[string]string            // map[pool address]subkey
 	poolThreshold map[string]uint32            // map[pool address]threshold
 	log           log15.Logger
+}
+
+type RParams struct {
+	eraSeconds       int64
+	leastBond        types.Coin
+	offset           int64
+	targetValidators []types.ValAddress
 }
 
 type WrapUnsignedTx struct {
@@ -36,6 +43,35 @@ type WrapUnsignedTx struct {
 }
 
 func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Logger) (*Connection, error) {
+	if len(option.TargetValidators) == 0 {
+		return nil, fmt.Errorf("targetValidators empty")
+	}
+	vals := make([]types.ValAddress, 0)
+	for _, val := range option.TargetValidators {
+		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		useVal, err := types.ValAddressFromBech32(val)
+		if err != nil {
+			done()
+			return nil, err
+		}
+		done()
+		vals = append(vals, useVal)
+	}
+	leastBond, err := types.ParseCoinNormalized(option.LeastBond)
+	if err != nil {
+		return nil, err
+	}
+
+	eraSeconds, ok := types.NewIntFromString(option.EraSeconds)
+	if !ok {
+		return nil, fmt.Errorf("eraSeconds format err, eraSeconds: %s", option.EraSeconds)
+	}
+
+	offset, ok := types.NewIntFromString(option.Offset)
+	if !ok {
+		return nil, fmt.Errorf("offset format err, offset: %s", option.Offset)
+	}
+
 	fmt.Printf("Will open cosmos wallet from <%s>. \nPlease ", cfg.KeystorePath)
 	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
 	if err != nil {
@@ -68,8 +104,13 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 	}
 
 	c := Connection{
+		RParams: RParams{
+			eraSeconds:       eraSeconds.Int64(),
+			leastBond:        leastBond,
+			offset:           offset.Int64(),
+			targetValidators: vals,
+		},
 		symbol:        core.RSymbol(cfg.Rsymbol),
-		eraSeconds:    int64(option.EraSeconds),
 		poolClients:   poolClients,
 		poolSubKey:    poolSubkey,
 		poolThreshold: option.PoolAddressThreshold,

@@ -66,7 +66,7 @@ func initClient() {
 
 func TestClient_GetHeightByEra(t *testing.T) {
 	initClient()
-	height, err := client.GetHeightByEra(18665, 88200)
+	height, err := client.GetHeightByEra(18665, 88200, 0)
 	assert.NoError(t, err)
 	t.Log(height)
 }

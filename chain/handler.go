@@ -17,23 +17,21 @@ import (
 const msgLimit = 4096
 
 type Handler struct {
-	targetValidators []types.ValAddress
-	conn             *Connection
-	router           *core.Router
-	msgChan          chan *core.Message
-	log              log15.Logger
-	stopChan         <-chan struct{}
-	sysErrChan       chan<- error
+	conn       *Connection
+	router     *core.Router
+	msgChan    chan *core.Message
+	log        log15.Logger
+	stopChan   <-chan struct{}
+	sysErrChan chan<- error
 }
 
-func NewHandler(targets []types.ValAddress, conn *Connection, log log15.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
+func NewHandler(conn *Connection, log log15.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
 	return &Handler{
-		targetValidators: targets,
-		conn:             conn,
-		msgChan:          make(chan *core.Message, msgLimit),
-		log:              log,
-		stopChan:         stopChan,
-		sysErrChan:       sysErrChan,
+		conn:       conn,
+		msgChan:    make(chan *core.Message, msgLimit),
+		log:        log,
+		stopChan:   stopChan,
+		sysErrChan: sysErrChan,
 	}
 }
 
@@ -80,6 +78,8 @@ func (h *Handler) handleMessage(m *core.Message) error {
 		return h.handleBondReportedEvent(m)
 	case core.ReasonActiveReportedEvent:
 		return h.handleActiveReportedEvent(m)
+	case core.ReasonRParamsChangedEvent:
+		return h.handleRParamsChangedEvent(m)
 	default:
 		return fmt.Errorf("message reason unsupported reason: %s", m.Reason)
 	}
@@ -129,7 +129,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
 	}
 
-	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds)
+	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
 			"pool address", poolAddressStr,
@@ -137,7 +137,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-	unSignedTx, err := GetBondUnbondUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.targetValidators)
+	unSignedTx, err := GetBondUnbondUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators)
 	if err != nil {
 		h.log.Error("GetBondUnbondUnsignedTx failed",
 			"pool address", poolAddressStr,
@@ -266,7 +266,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"error", err)
 		return err
 	}
-	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds)
+	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
 			"pool address", poolAddressStr,
@@ -514,4 +514,50 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		break
 	}
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
+}
+
+// update rparams
+func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
+	h.log.Info("handleRParamsChangedEvent", "msg", m)
+
+	eventRParamsChanged, ok := m.Content.(core.EventRParamsChanged)
+	if !ok {
+		return fmt.Errorf("EventRParamsChanged cast failed, %+v", m)
+	}
+
+	if len(eventRParamsChanged.TargetValidators) == 0 {
+		return fmt.Errorf("targetValidators empty")
+	}
+	vals := make([]types.ValAddress, 0)
+	for _, val := range eventRParamsChanged.TargetValidators {
+		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		useVal, err := types.ValAddressFromBech32(val)
+		if err != nil {
+			done()
+			return err
+		}
+		done()
+		vals = append(vals, useVal)
+	}
+	leastBond, err := types.ParseCoinNormalized(eventRParamsChanged.LeastBond)
+	if err != nil {
+		return err
+	}
+
+	eraSeconds, ok := types.NewIntFromString(eventRParamsChanged.EraSeconds)
+	if !ok {
+		return fmt.Errorf("eraSeconds format err, eraSeconds: %s", eventRParamsChanged.EraSeconds)
+	}
+
+	offset, ok := types.NewIntFromString(eventRParamsChanged.Offset)
+	if !ok {
+		return fmt.Errorf("offset format err, offset: %s", eventRParamsChanged.Offset)
+	}
+
+	h.conn.RParams.eraSeconds = eraSeconds.Int64()
+	h.conn.RParams.leastBond = leastBond
+	h.conn.RParams.offset = offset.Int64()
+	h.conn.RParams.targetValidators = vals
+
+	return nil
 }
