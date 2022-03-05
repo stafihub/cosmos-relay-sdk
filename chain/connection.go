@@ -72,7 +72,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		return nil, fmt.Errorf("offset format err, offset: %s", option.Offset)
 	}
 
-	fmt.Printf("Will open cosmos wallet from <%s>. \nPlease ", cfg.KeystorePath)
+	fmt.Printf("Will open %s wallet from <%s>. \nPlease ", cfg.Name, cfg.KeystorePath)
 	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
 	if err != nil {
 		return nil, err
