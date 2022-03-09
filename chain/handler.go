@@ -217,7 +217,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 				"signatures", bytesArrayToStr(signatures),
 				"threshold", threshold,
 				"err", err)
-			return fmt.Errorf("assemble multisigTx failed")
+			continue
 		}
 		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
 		if err == nil && res.Code != 0 {
@@ -384,7 +384,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 				"signatures", bytesArrayToStr(signatures),
 				"threshold", threshold,
 				"err", err)
-			return fmt.Errorf("assemble multisigTx failed")
+			continue
 		}
 		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
 		if err == nil && res.Code != 0 {
@@ -505,7 +505,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 				"signatures", bytesArrayToStr(signatures),
 				"threshold", threshold,
 				"err", err)
-			return fmt.Errorf("assemble multisigTx failed")
+			continue
 		}
 		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
 		if err == nil && res.Code != 0 {
