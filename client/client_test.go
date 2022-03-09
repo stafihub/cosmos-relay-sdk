@@ -94,6 +94,25 @@ func TestClient_QueryTxByHash(t *testing.T) {
 	}
 }
 
+func TestClient_GetEvent(t *testing.T) {
+	initClient()
+	hubClient.AccountPrefix = "terra"
+	txs, err := client.GetTxs([]string{fmt.Sprintf("transfer.sender=%s", "terra15lne70yk254s0pm2da6g59r82cjymzjq3r2v5x")}, 1, 1000, "asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tx := range txs.Txs {
+		// t.Log(fmt.Sprintf("%+v", tx.Logs))
+		for _, log := range tx.Logs {
+			for _, event := range log.Events {
+				t.Log(fmt.Sprintf("%+v", event))
+			}
+		}
+
+	}
+
+}
+
 func TestGetTxs(t *testing.T) {
 	initClient()
 	txs, err := client.GetBlockTxs(163)
