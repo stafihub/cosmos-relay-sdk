@@ -13,7 +13,7 @@ import (
 )
 
 func (c *Client) SingleTransferTo(toAddr types.AccAddress, amount types.Coins) error {
-	done := core.UseSdkConfigContext(AccountPrefix)
+	done := core.UseSdkConfigContext(GetAccountPrefix())
 	defer done()
 	msg := xBankTypes.NewMsgSend(c.clientCtx.GetFromAddress(), toAddr, amount)
 	cmd := cobra.Command{}
@@ -21,14 +21,14 @@ func (c *Client) SingleTransferTo(toAddr types.AccAddress, amount types.Coins) e
 }
 
 func (c *Client) BroadcastTx(tx []byte) (string, error) {
-	done := core.UseSdkConfigContext(AccountPrefix)
+	done := core.UseSdkConfigContext(GetAccountPrefix())
 	defer done()
 	res, err := c.clientCtx.BroadcastTx(tx)
 	if err != nil {
 		return "", err
 	}
 	if res.Code != 0 {
-		return "", fmt.Errorf("broadcast err with res.code: %d", res.Code)
+		return res.TxHash, fmt.Errorf("broadcast err with res.code: %d, res.Codespace: %s", res.Code, res.Codespace)
 	}
 	return res.TxHash, nil
 }
@@ -38,7 +38,7 @@ func (c *Client) ConstructAndSignTx(msgs ...types.Msg) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	done := core.UseSdkConfigContext(AccountPrefix)
+	done := core.UseSdkConfigContext(GetAccountPrefix())
 	defer done()
 	cmd := cobra.Command{}
 	txf := clientTx.NewFactoryCLI(c.clientCtx, cmd.Flags())

@@ -201,7 +201,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 	if bond.Cmp(unbond) == 0 {
 		return nil, errors.New("bond equal to unbond")
 	}
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
 	done()
 
@@ -236,7 +236,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 				continue
 			}
 
-			done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+			done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 			valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
 			if err != nil {
 				done()
@@ -289,7 +289,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 		}
 
 		//sort validators by delegate amount
-		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 		sort.Slice(valAddrs, func(i int, j int) bool {
 			return deleAmount[valAddrs[i].String()].
 				GT(deleAmount[valAddrs[j].String()])
@@ -429,7 +429,7 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 	logger log15.Logger) ([]byte, []xBankTypes.Output, error) {
 
 	outPuts := make([]xBankTypes.Output, 0)
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	for _, receive := range receives {
 		addr, err := types.AccAddressFromBech32(receive.Recipient)
 		if err != nil {
@@ -465,7 +465,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
 	retry := BlockRetryLimit
 	txHashHexStr := hex.EncodeToString(txHash)
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	poolAddressStr := poolAddress.String()
 	done()
 

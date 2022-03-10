@@ -96,7 +96,7 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 func TestClient_GetEvent(t *testing.T) {
 	initClient()
-	hubClient.AccountPrefix = "terra"
+	hubClient.SetAccountPrefix("terra")
 	txs, err := client.GetTxs([]string{fmt.Sprintf("transfer.sender=%s", "terra15lne70yk254s0pm2da6g59r82cjymzjq3r2v5x")}, 1, 1000, "asc")
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +234,15 @@ func TestMemo(t *testing.T) {
 	//t.Log(string(hb))
 	bonderAddr, _ := ss58.Encode(hb, ss58.StafiPrefix)
 	t.Log(bonderAddr)
+}
+
+func TestToAddress(t *testing.T) {
+
+	address, err := types.AccAddressFromHex("76ec5242a51191b37bc1043d894c3ddce66e4020")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(address.String())
 }
 
 func TestMultiThread(t *testing.T) {

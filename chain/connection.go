@@ -48,7 +48,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 	}
 	vals := make([]types.ValAddress, 0)
 	for _, val := range option.TargetValidators {
-		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 		useVal, err := types.ValAddressFromBech32(val)
 		if err != nil {
 			done()
@@ -90,7 +90,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 			return nil, err
 		}
 
-		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 		poolAddress := poolInfo.GetAddress().String()
 		poolClients[poolAddress] = poolClient
 		poolSubkey[poolAddress] = subKeyName

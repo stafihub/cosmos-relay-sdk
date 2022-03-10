@@ -102,7 +102,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 	snap := eventEraPoolUpdated.Snapshot
 
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -246,7 +246,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	}
 	snap := eventBondReported.Snapshot
 
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -413,7 +413,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	}
 	snap := eventActiveReported.Snapshot
 
-	done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -530,7 +530,7 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 	}
 	vals := make([]types.ValAddress, 0)
 	for _, val := range eventRParamsChanged.TargetValidators {
-		done := core.UseSdkConfigContext(hubClient.AccountPrefix)
+		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
 		useVal, err := types.ValAddressFromBech32(val)
 		if err != nil {
 			done()
@@ -558,6 +558,11 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 	h.conn.RParams.leastBond = leastBond
 	h.conn.RParams.offset = offset.Int64()
 	h.conn.RParams.targetValidators = vals
-
+	for _, c := range h.conn.poolClients {
+		err := c.SetGasPrice(eventRParamsChanged.GasPrice)
+		if err != nil {
+			return fmt.Errorf("setGasPrice failed, err: %s", err)
+		}
+	}
 	return nil
 }

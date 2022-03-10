@@ -15,7 +15,15 @@ import (
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
 )
 
-var AccountPrefix = "cosmos"
+var accountPrefix = "cosmos"
+
+func GetAccountPrefix() string {
+	return accountPrefix
+}
+
+func SetAccountPrefix(prefix string) {
+	accountPrefix = prefix
+}
 
 //cosmos client
 type Client struct {
@@ -75,7 +83,7 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint string) (*Client,
 		}
 
 		retClient.setDenom(bondedDenom.Params.BondDenom)
-		err = retClient.setGasPrice(gasPrice)
+		err = retClient.SetGasPrice(gasPrice)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +143,7 @@ func (c *Client) GetFromAddress() types.AccAddress {
 	return c.clientCtx.FromAddress
 }
 
-func (c *Client) setGasPrice(gasPrice string) error {
+func (c *Client) SetGasPrice(gasPrice string) error {
 	_, err := types.ParseDecCoins(gasPrice)
 	if err != nil {
 		return err
