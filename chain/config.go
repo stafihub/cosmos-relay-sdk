@@ -2,10 +2,9 @@ package chain
 
 type ConfigOption struct {
 	// get from config file
-	BlockstorePath   string            `json:"blockstorePath"`
-	StartBlock       int               `json:"startBlock"`
-	PoolNameSubKey   map[string]string `json:"pools"`
-	GetAccountPrefix string            `json:"accountPrefix"`
+	BlockstorePath string            `json:"blockstorePath"`
+	StartBlock     int               `json:"startBlock"`
+	PoolNameSubKey map[string]string `json:"pools"`
 
 	// get from stafihub rparams
 	GasPrice         string   `json:"gasPrice"`
