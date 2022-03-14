@@ -102,7 +102,16 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 	snap := eventEraPoolUpdated.Snapshot
 
-	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
+	//get poolClient of this pool address
+	poolClient, err := h.conn.GetPoolClient(snap.GetPool())
+	if err != nil {
+		h.log.Error("EraPoolUpdated pool failed",
+			"pool address", snap.GetPool(),
+			"err", err)
+		return err
+	}
+
+	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -111,15 +120,6 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	poolAddressStr := poolAddress.String()
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
-
-	//get poolClient of this pool address
-	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
-	if err != nil {
-		h.log.Error("EraPoolUpdated pool failed",
-			"pool hex address", poolAddressStr,
-			"err", err)
-		return err
-	}
 
 	//check bond/unbond is needed
 	//bond report if no need
@@ -245,8 +245,15 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
 	}
 	snap := eventBondReported.Snapshot
+	poolClient, err := h.conn.GetPoolClient(snap.GetPool())
+	if err != nil {
+		h.log.Error("processBondReportEvent failed",
+			"pool address", snap.GetPool(),
+			"error", err)
+		return err
+	}
 
-	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
+	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -259,13 +266,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
-	if err != nil {
-		h.log.Error("processBondReportEvent failed",
-			"pool address", poolAddressStr,
-			"error", err)
-		return err
-	}
 	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
@@ -412,8 +412,15 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
 	}
 	snap := eventActiveReported.Snapshot
+	poolClient, err := h.conn.GetPoolClient(snap.GetPool())
+	if err != nil {
+		h.log.Error("processBondReportEvent failed",
+			"pool address", snap.GetPool(),
+			"error", err)
+		return err
+	}
 
-	done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
+	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
 		done()
@@ -422,14 +429,6 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	poolAddressStr := poolAddress.String()
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
-
-	poolClient, err := h.conn.GetPoolClient(poolAddressStr)
-	if err != nil {
-		h.log.Error("processBondReportEvent failed",
-			"pool address", poolAddressStr,
-			"error", err)
-		return err
-	}
 
 	unSignedTx, outPuts, err := GetTransferUnsignedTx(poolClient, poolAddress, eventActiveReported.PoolUnbond.Unbondings, h.log)
 	if err != nil && err != ErrNoOutPuts {
@@ -528,9 +527,13 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 	if len(eventRParamsChanged.TargetValidators) == 0 {
 		return fmt.Errorf("targetValidators empty")
 	}
+	poolClient, err := h.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
 	vals := make([]types.ValAddress, 0)
 	for _, val := range eventRParamsChanged.TargetValidators {
-		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
+		done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 		useVal, err := types.ValAddressFromBech32(val)
 		if err != nil {
 			done()

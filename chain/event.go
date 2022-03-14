@@ -77,7 +77,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 			return nil
 		}
 
-		done := core.UseSdkConfigContext(hubClient.GetAccountPrefix())
+		done := core.UseSdkConfigContext(client.GetAccountPrefix())
 		var memoInTx string
 		tx, err := client.GetTxConfig().TxDecoder()(txValue)
 		if err != nil {

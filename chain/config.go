@@ -12,6 +12,7 @@ type ConfigOption struct {
 	LeastBond        string   `json:"leastBond"`
 	Offset           string   `json:"offset"`
 	TargetValidators []string `json:"targetValidators"`
+	AccountPrefix    string   `json;"accountPrefix"`
 
 	// get from stafihub pooldetail
 	PoolAddressThreshold map[string]uint32 `json:"poolThreshold"`
