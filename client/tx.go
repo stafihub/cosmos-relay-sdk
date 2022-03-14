@@ -73,3 +73,21 @@ func (c *Client) ConstructAndSignTx(msgs ...types.Msg) ([]byte, error) {
 	}
 	return txBytes, nil
 }
+
+func (c *Client) GetTxMemo(txBts []byte) (string, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	var memoInTx string
+	tx, err := c.GetTxConfig().TxDecoder()(txBts)
+	if err != nil {
+		return "", err
+	}
+	memoTx, ok := tx.(types.TxWithMemo)
+	if !ok {
+		return "", fmt.Errorf("tx is not type TxWithMemo")
+	}
+
+	memoInTx = memoTx.GetMemo()
+	return memoInTx, nil
+}
