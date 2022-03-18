@@ -85,11 +85,10 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		if err != nil {
 			return nil, err
 		}
-		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, cfg.Endpoint)
+		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, cfg.Endpoint, option.AccountPrefix)
 		if err != nil {
 			return nil, err
 		}
-		poolClient.SetAccountPrefix(option.AccountPrefix)
 		done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 		poolAddress := poolInfo.GetAddress().String()
 		poolClients[poolAddress] = poolClient

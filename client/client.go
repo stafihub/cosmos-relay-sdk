@@ -15,8 +15,6 @@ import (
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
 )
 
-var defaultAccountPrefix = "cosmos"
-
 //cosmos client
 type Client struct {
 	clientCtx     client.Context
@@ -34,7 +32,7 @@ func (c *Client) GetAccountPrefix() string {
 func (c *Client) SetAccountPrefix(prefix string) {
 	c.accountPrefix = prefix
 }
-func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint string) (*Client, error) {
+func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint, accountPrefix string) (*Client, error) {
 	encodingConfig := MakeEncodingConfig()
 	var retClient *Client
 	if len(fromName) != 0 {
@@ -64,7 +62,7 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint string) (*Client,
 		retClient = &Client{
 			clientCtx:     initClientCtx,
 			rpcClient:     rpcClient,
-			accountPrefix: defaultAccountPrefix,
+			accountPrefix: accountPrefix,
 		}
 
 		chaindId, err := retClient.GetChainId()
@@ -108,7 +106,7 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint string) (*Client,
 		retClient = &Client{
 			clientCtx:     initClientCtx,
 			rpcClient:     rpcClient,
-			accountPrefix: defaultAccountPrefix,
+			accountPrefix: accountPrefix,
 		}
 		bondedDenom, err := retClient.QueryBondedDenom()
 		if err != nil {
