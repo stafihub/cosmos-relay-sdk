@@ -270,6 +270,8 @@ func (c *Client) QueryBondedDenom() (*xStakeTypes.QueryParamsResponse, error) {
 	return cc.(*xStakeTypes.QueryParamsResponse), nil
 }
 
+
+
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
 	if int64(era) < offset {
 		return 0, fmt.Errorf("era mustn't less than offset")

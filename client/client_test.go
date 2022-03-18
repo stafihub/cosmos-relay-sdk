@@ -16,6 +16,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
+	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -138,6 +139,26 @@ func TestGetPubKey(t *testing.T) {
 
 }
 
+func TestDecodeAddress(t *testing.T) {
+	initClient()
+	client.SetAccountPrefix("iaa")
+	done:=core.UseSdkConfigContext(client.GetAccountPrefix())
+	address, err := types.AccAddressFromBech32("iaa15lne70yk254s0pm2da6g59r82cjymzjqz9sa5h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done()
+	t.Log(hex.EncodeToString(address))
+	client.SetAccountPrefix("stafi")
+	done=core.UseSdkConfigContext(client.GetAccountPrefix())
+	address2, err := types.AccAddressFromBech32("stafi15lne70yk254s0pm2da6g59r82cjymzjqvvqxz7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done()
+	t.Log(hex.EncodeToString(address2))
+}
+
 func TestClient_Sign(t *testing.T) {
 	initClient()
 	bts, err := hex.DecodeString("0E4F8F8FF7A3B67121711DA17FBE5AE8CB25DB272DDBF7DC0E02122947266604")
@@ -221,10 +242,12 @@ func TestClient_GetSequence(t *testing.T) {
 	t.Log(len(res.GetUnbond().Entries))
 }
 func TestMemo(t *testing.T) {
-	initClient()
-	res, err := client.QueryTxByHash("c7e3f7baf5a5f1d8cbc112080f32070dddd7cca5fe4272e06f8d42c17b25193f")
-	assert.NoError(t, err)
-	tx, err := client.GetTxConfig().TxDecoder()(res.Tx.GetValue())
+	// initClient()
+	// res, err := client.QueryTxByHash("c7e3f7baf5a5f1d8cbc112080f32070dddd7cca5fe4272e06f8d42c17b25193f")
+	// assert.NoError(t, err)
+
+	txBts, err := hex.DecodeString("")
+	tx, err := client.GetTxConfig().TxDecoder()(txBts)
 	//tx, err := client.GetTxConfig().TxJSONDecoder()(res.Tx.Value)
 	assert.NoError(t, err)
 	memoTx, ok := tx.(types.TxWithMemo)

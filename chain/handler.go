@@ -95,7 +95,7 @@ func (h *Handler) handleMessage(m *core.Message) error {
 // 4 wait until signature enough, then send tx to cosmoshub
 // 5 bond report to stafihub
 func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
-	h.log.Info("handleEraPoolUpdatedEvent", "msg", m)
+	h.log.Info("handleEraPoolUpdatedEvent", "m", m)
 	eventEraPoolUpdated, ok := m.Content.(core.EventEraPoolUpdated)
 	if !ok {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
@@ -239,7 +239,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 //     4) wait until signature enough and send tx to cosmoshub
 //     5) active report to stafihub
 func (h *Handler) handleBondReportedEvent(m *core.Message) error {
-	h.log.Info("handleBondReportedEvent", "msg", m)
+	h.log.Info("handleBondReportedEvent", "m", m)
 	eventBondReported, ok := m.Content.(core.EventBondReported)
 	if !ok {
 		return fmt.Errorf("ProposalLiquidityBond cast failed, %+v", m)
@@ -405,7 +405,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 // 4 wait until signature enough and send tx to cosmoshub
 // 5 transfer report to stafihub
 func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
-	h.log.Info("handleActiveReportedEvent", "msg", m)
+	h.log.Info("handleActiveReportedEvent", "m", m)
 
 	eventActiveReported, ok := m.Content.(core.EventActiveReported)
 	if !ok {
@@ -517,7 +517,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 
 // update rparams
 func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
-	h.log.Info("handleRParamsChangedEvent", "msg", m)
+	h.log.Info("handleRParamsChangedEvent", "m", m)
 
 	eventRParamsChanged, ok := m.Content.(core.EventRParamsChanged)
 	if !ok {
