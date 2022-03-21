@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -506,12 +507,41 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 				"err", err)
 			continue
 		}
+		// check tx is already onchain
+		// 1 onchain:  if tx is failed continue construct new tx else go to next checkAndSend()
+		// 2 not onchain: check banlance enough then go to next checkAndSend()
 		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
-		if err == nil && res.Code != 0 {
-			continue
+		if err == nil {
+			if res.Code != 0 {
+				continue
+			} else {
+				break
+			}
+		} else {
+			totalSend := types.NewInt(0)
+			for _, out := range outPuts {
+				totalSend = totalSend.Add(out.Coins.AmountOf(poolClient.GetDenom()))
+			}
+
+			// now we will wait until enough balance or sent on chain by other nodes
+			for {
+				balanceRes, err := poolClient.QueryBalance(poolAddress, poolClient.GetDenom(), 0)
+				if err == nil && balanceRes.Balance.Amount.GT(totalSend) {
+					break
+				}
+				// in case of sent on chain by other nodes
+				_, err = poolClient.QueryTxByHash(hex.EncodeToString(txHash))
+				if err == nil {
+					break
+				}
+				h.log.Warn("pool balance not enouth and transfer tx not onchain, will wait", "pool address", poolAddressStr)
+				time.Sleep(6 * time.Second)
+			}
+
+			break
 		}
-		break
 	}
+
 	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
 

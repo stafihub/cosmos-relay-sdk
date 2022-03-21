@@ -56,7 +56,8 @@ func initClient() {
 	var err error
 	// client, err = rpc.NewClient(key, "stargate-final", "key0", "0.04umuon", "umuon", "https://testcosmosrpc.wetez.io:443")
 	// client, err = hubClient.NewClient(nil, "my-account", "0.04stake", "http://127.0.0.1:36657")
-	client, err = hubClient.NewClient(nil, "", "", "https://test-terra-rpc1.stafi.io:443", "iaa")
+	// client, err = hubClient.NewClient(nil, "", "", "https://test-terra-rpc1.stafi.io:443", "iaa")
+	client, err = hubClient.NewClient(nil, "", "", "https://test-iris-rpc1.stafihub.io:443", "iaa")
 	// client, err = hubClient.NewClient(nil, "my-account", "", "0.04stake", "stake", "https://testcosmosrpc.wetez.io:443")
 	// client, _ = rpc.NewClient(key, "cosmoshub-4", "self", "0.00001uatom", "uatom", "https://cosmos-rpc1.stafi.io:443")
 	// client, err = hubClient.NewClient(nil, "cosmoshub-4", "", "0.00001uatom", "uatom", "https://cosmos-rpc1.stafi.io:443")
@@ -83,9 +84,9 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 	for {
 
-		res, err := client.QueryTxByHash("cb21ff0aae81b98f39e1488bb26c098597fab336db45521be7d8aad057a973e3")
+		res, err := client.QueryTxByHash("e9b912361f4c3aa4de05651f2b4b9a63360707e597bf0f9dddff631e73aba27b")
 		assert.NoError(t, err)
-		t.Log(res.Height)
+		t.Log(res.Code)
 
 		curBlock, err := client.GetCurrentBlockHeight()
 		assert.NoError(t, err)
