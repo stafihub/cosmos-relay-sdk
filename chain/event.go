@@ -72,11 +72,6 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 			return fmt.Errorf("transfer denom not equal,expect %s got %s,leastBond denom: %s", client.GetDenom(), coin.GetDenom(), l.conn.leastBond.GetDenom())
 		}
 
-		if !coin.IsGTE(l.conn.leastBond) {
-			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "event", event)
-			return nil
-		}
-
 		done := core.UseSdkConfigContext(client.GetAccountPrefix())
 		var memoInTx string
 		tx, err := client.GetTxConfig().TxDecoder()(txValue)
@@ -94,6 +89,11 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		memoInTx = memoTx.GetMemo()
 
 		if isRecover {
+			// check bond amount if it is a tx that will be recovered
+			if !coin.IsGTE(l.conn.leastBond) {
+				l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "event", event)
+				return nil
+			}
 			//check signer of recover tx == from of this tx
 			if from != signer {
 				l.log.Warn("received token with recover memo, but from!=signer", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "signer", signer)
@@ -141,6 +141,11 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 
 	switch split[0] {
 	case "1":
+		// check bond amount
+		if !coin.IsGTE(l.conn.leastBond) {
+			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "bond amount", coin.String())
+			return nil
+		}
 		done := core.UseSdkConfigContext("stafi")
 		bonder, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
