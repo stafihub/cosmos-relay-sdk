@@ -11,6 +11,15 @@ import (
 	xLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
+var zeroAddress = types.AccAddress{0x0000000000000000000000000000000000000000}
+var zeroStafiAddressStr string
+
+func init() {
+	done := core.UseSdkConfigContext("stafi")
+	zeroStafiAddressStr = zeroAddress.String()
+	done()
+}
+
 func (l *Listener) processBlockEvents(currentBlock int64) error {
 	if currentBlock%100 == 0 {
 		l.log.Debug("processEvents", "blockNum", currentBlock)
@@ -71,15 +80,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		}
 		if coin.GetDenom() != client.GetDenom() || coin.GetDenom() != l.conn.leastBond.GetDenom() {
 			l.log.Warn(fmt.Sprintf("transfer denom not equal,expect %s got %s,leastBond denom: %s", client.GetDenom(), coin.GetDenom(), l.conn.leastBond.GetDenom()))
-			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-				Denom:  string(l.symbol),
-				Bonder: "",
-				Pool:   recipient,
-				Txhash: txHash,
-				Amount: coin.Amount,
-				State:  xLedgerTypes.LiquidityBondStateDenomUnmatch,
-			}
-			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+			return nil
 		}
 
 		done := core.UseSdkConfigContext(client.GetAccountPrefix())
@@ -104,7 +105,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 				l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "event", event)
 				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 					Denom:  string(l.symbol),
-					Bonder: "",
+					Bonder: zeroStafiAddressStr,
 					Pool:   recipient,
 					Txhash: txHash,
 					Amount: coin.Amount,
@@ -117,7 +118,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 				l.log.Warn("received token with recover memo, but from!=signer", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "signer", signer)
 				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 					Denom:  string(l.symbol),
-					Bonder: "",
+					Bonder: zeroStafiAddressStr,
 					Pool:   recipient,
 					Txhash: txHash,
 					Amount: coin.Amount,
@@ -153,7 +154,7 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		l.log.Warn("received token but no memo", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String())
 		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 			Denom:  string(l.symbol),
-			Bonder: "",
+			Bonder: zeroStafiAddressStr,
 			Pool:   recipient,
 			Txhash: txHash,
 			Amount: coin.Amount,
@@ -167,7 +168,7 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
 		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 			Denom:  string(l.symbol),
-			Bonder: "",
+			Bonder: zeroStafiAddressStr,
 			Pool:   recipient,
 			Txhash: txHash,
 			Amount: coin.Amount,
@@ -183,7 +184,7 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "bond amount", coin.String())
 			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 				Denom:  string(l.symbol),
-				Bonder: "",
+				Bonder: zeroStafiAddressStr,
 				Pool:   recipient,
 				Txhash: txHash,
 				Amount: coin.Amount,
@@ -198,7 +199,7 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
 			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 				Denom:  string(l.symbol),
-				Bonder: "",
+				Bonder: zeroStafiAddressStr,
 				Pool:   recipient,
 				Txhash: txHash,
 				Amount: coin.Amount,
@@ -257,6 +258,8 @@ func (l Listener) SubmitProposalExeLiquidityBond(proposalExeLiquidityBond core.P
 		Reason:      core.ReasonExeLiquidityBond,
 	}
 	m.Content = proposalExeLiquidityBond
-	l.log.Info("find liquiditybond transfer", "msg", m)
+	if proposalExeLiquidityBond.State == xLedgerTypes.LiquidityBondStateVerifyOk {
+		l.log.Info("find liquiditybond transfer", "msg", m)
+	}
 	return l.submitMessage(&m)
 }

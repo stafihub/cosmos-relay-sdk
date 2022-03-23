@@ -97,6 +97,9 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 			return nil, fmt.Errorf("no pool detail info in stafihub, pool: %s", poolAddress)
 		}
 		done()
+		if poolClient.GetDenom() != leastBond.Denom {
+			return nil, fmt.Errorf("leastBond denom: %s not equal poolClient's denom: %s", leastBond.Denom, poolClient.GetDenom())
+		}
 	}
 	if len(poolClients) == 0 {
 		return nil, fmt.Errorf("no pool clients")
