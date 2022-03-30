@@ -15,7 +15,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/params"
 	"github.com/cosmos/cosmos-sdk/x/staking"
-	"github.com/cosmos/ibc-go/v3/modules/apps/transfer"
+
+	interChain "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
+	ibcTransfer "github.com/cosmos/ibc-go/v3/modules/apps/transfer"
+	ibcCore "github.com/cosmos/ibc-go/v3/modules/core"
 )
 
 // EncodingConfig specifies the concrete encoding types to use for a given app.
@@ -39,10 +42,12 @@ func MakeEncodingConfig() EncodingConfig {
 		capability.AppModuleBasic{},
 		staking.AppModuleBasic{},
 		distribution.AppModuleBasic{},
-
 		params.AppModuleBasic{},
 		crisis.AppModuleBasic{},
-		transfer.AppModuleBasic{},
+
+		ibcTransfer.AppModuleBasic{},
+		ibcCore.AppModuleBasic{},
+		interChain.AppModuleBasic{},
 	)
 	moduleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	moduleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)
