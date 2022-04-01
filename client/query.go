@@ -234,8 +234,21 @@ func (c *Client) GetTxs(events []string, page, limit int, orderBy string) (*type
 	return cc.(*types.SearchTxsResult), nil
 }
 
+func (c *Client) GetTxsWithParseErrSkip(events []string, page, limit int, orderBy string) (*types.SearchTxsResult, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+	cc, err := retry(func() (interface{}, error) {
+		return xAuthTx.QueryTxsByEventsWithParseErrSkip(c.clientCtx, events, page, limit, orderBy)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*types.SearchTxsResult), nil
+}
+
+// will skip txs that parse failed
 func (c *Client) GetBlockTxs(height int64) ([]*types.TxResponse, error) {
-	searchTxs, err := c.GetTxs([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
+	searchTxs, err := c.GetTxsWithParseErrSkip([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +282,6 @@ func (c *Client) QueryBondedDenom() (*xStakeTypes.QueryParamsResponse, error) {
 	}
 	return cc.(*xStakeTypes.QueryParamsResponse), nil
 }
-
-
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
 	if int64(era) < offset {
