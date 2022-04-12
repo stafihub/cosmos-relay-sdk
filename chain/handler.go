@@ -577,19 +577,9 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 		return err
 	}
 
-	eraSeconds, ok := types.NewIntFromString(eventRParamsChanged.EraSeconds)
-	if !ok {
-		return fmt.Errorf("eraSeconds format err, eraSeconds: %s", eventRParamsChanged.EraSeconds)
-	}
-
-	offset, ok := types.NewIntFromString(eventRParamsChanged.Offset)
-	if !ok {
-		return fmt.Errorf("offset format err, offset: %s", eventRParamsChanged.Offset)
-	}
-
-	h.conn.RParams.eraSeconds = eraSeconds.Int64()
+	h.conn.RParams.eraSeconds = int64(eventRParamsChanged.EraSeconds)
 	h.conn.RParams.leastBond = leastBond
-	h.conn.RParams.offset = offset.Int64()
+	h.conn.RParams.offset = int64(eventRParamsChanged.Offset)
 	h.conn.RParams.targetValidators = vals
 	for _, c := range h.conn.poolClients {
 		err := c.SetGasPrice(eventRParamsChanged.GasPrice)
