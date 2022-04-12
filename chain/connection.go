@@ -62,16 +62,6 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 		return nil, err
 	}
 
-	eraSeconds, ok := types.NewIntFromString(option.EraSeconds)
-	if !ok {
-		return nil, fmt.Errorf("eraSeconds format err, eraSeconds: %s", option.EraSeconds)
-	}
-
-	offset, ok := types.NewIntFromString(option.Offset)
-	if !ok {
-		return nil, fmt.Errorf("offset format err, offset: %s", option.Offset)
-	}
-
 	fmt.Printf("Will open %s wallet from <%s>. \nPlease ", cfg.Name, cfg.KeystorePath)
 	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
 	if err != nil {
@@ -107,9 +97,9 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Lo
 
 	c := Connection{
 		RParams: RParams{
-			eraSeconds:       eraSeconds.Int64(),
+			eraSeconds:       int64(option.EraSeconds),
 			leastBond:        leastBond,
-			offset:           offset.Int64(),
+			offset:           int64(option.Offset),
 			targetValidators: vals,
 		},
 		symbol:        core.RSymbol(cfg.Rsymbol),
