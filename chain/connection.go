@@ -7,12 +7,12 @@ import (
 	"os"
 	"sort"
 
-	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/config"
 	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/log"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
@@ -22,7 +22,7 @@ type Connection struct {
 	poolClients   map[string]*hubClient.Client // map[pool address]subClient
 	poolSubKey    map[string]string            // map[pool address]subkey
 	poolThreshold map[string]uint32            // map[pool address]threshold
-	log           log15.Logger
+	log           log.Logger
 }
 
 type RParams struct {
@@ -42,7 +42,7 @@ type WrapUnsignedTx struct {
 	Type       stafiHubXLedgerTypes.OriginalTxType
 }
 
-func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log15.Logger) (*Connection, error) {
+func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logger) (*Connection, error) {
 	if len(option.TargetValidators) == 0 {
 		return nil, fmt.Errorf("targetValidators empty")
 	}

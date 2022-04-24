@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/ChainSafe/log15"
-
 	"github.com/stafihub/rtoken-relay-core/common/config"
 	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/log"
 )
 
 var (
@@ -30,7 +28,7 @@ func NewChain() *Chain {
 	return &Chain{}
 }
 
-func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log15.Logger, sysErr chan<- error) error {
+func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log.Logger, sysErr chan<- error) error {
 	stop := make(chan struct{})
 
 	bts, err := json.Marshal(cfg.Opts)

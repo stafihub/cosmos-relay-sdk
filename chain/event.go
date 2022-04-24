@@ -251,6 +251,8 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 
 }
 
+
+//todo blocked until tx is dealed on stafichain
 func (l Listener) SubmitProposalExeLiquidityBond(proposalExeLiquidityBond core.ProposalExeLiquidityBond) error {
 	m := core.Message{
 		Source:      l.symbol,

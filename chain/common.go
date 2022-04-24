@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ChainSafe/log15"
 	"github.com/cosmos/cosmos-sdk/types"
 	errType "github.com/cosmos/cosmos-sdk/types/errors"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stafihub/rtoken-relay-core/common/utils"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
@@ -426,7 +426,7 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 }
 
 func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, receives []stafiHubXLedgerTypes.Unbonding,
-	logger log15.Logger) ([]byte, []xBankTypes.Output, error) {
+	logger log.Logger) ([]byte, []xBankTypes.Output, error) {
 
 	outPuts := make([]xBankTypes.Output, 0)
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
