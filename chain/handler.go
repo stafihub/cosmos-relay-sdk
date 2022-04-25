@@ -477,7 +477,6 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 			"pool address", poolAddressStr,
 			"out put", outPuts,
 			"proposalId", proposalIdHexStr,
-			"unsignedTx", hex.EncodeToString(unSignedTx),
 			"signature", hex.EncodeToString(sigBts))
 
 		// send to stafihub
