@@ -646,7 +646,6 @@ func (h *Handler) getSignatureFromStafiHub(param *core.ParamSubmitSignature) (si
 	case <-timer.C:
 		return nil, fmt.Errorf("get signatures from stafihub timeout")
 	case sigs := <-getSignatures.Sigs:
-
 		for _, sig := range sigs {
 			sigBts, err := hex.DecodeString(sig)
 			if err != nil {

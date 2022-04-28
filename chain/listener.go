@@ -7,13 +7,14 @@ import (
 
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
+	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 	"github.com/stafiprotocol/chainbridge/utils/blockstore"
 )
 
 var (
 	BlockRetryInterval = time.Second * 6
-	BlockRetryLimit    = 50
-	BlockConfirmNumber = int64(3)
+	BlockRetryLimit    = 500
+	BlockConfirmNumber = int64(1)
 )
 
 type Listener struct {
@@ -217,4 +218,57 @@ func (l *Listener) sendNewEraMsg(era uint32) error {
 
 	l.log.Debug("sendNewEraMsg", "msg", m)
 	return l.router.Send(&m)
+}
+
+func (h *Listener) mustGetBondRecordFromStafiHub(denom, txHash string) (bondRecord *stafiHubXLedgerTypes.BondRecord, err error) {
+	retry := 0
+	param := &core.ParamGetBondRecord{Denom: denom, TxHash: txHash}
+	for {
+		if retry > BlockRetryLimit {
+			return nil, fmt.Errorf("getBondRecordFromStafiHub reach retry limit")
+		}
+		bondRecord, err := h.getBondRecordFromStafiHub(param)
+		if err != nil {
+			retry++
+			h.log.Warn("getBondRecordFromStafiHub failed, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		if len(bondRecord.Denom) == 0 || len(bondRecord.Pool) == 0 {
+			retry++
+			h.log.Warn("getBondRecordFromStafiHub failed, will retry.")
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		return bondRecord, nil
+	}
+}
+
+func (h *Listener) getBondRecordFromStafiHub(param *core.ParamGetBondRecord) (bondRecord *stafiHubXLedgerTypes.BondRecord, err error) {
+	getBondRecord := core.ParamGetBondRecord{
+		Denom:      param.Denom,
+		TxHash:     param.TxHash,
+		BondRecord: make(chan stafiHubXLedgerTypes.BondRecord, 1),
+	}
+	msg := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonGetBondRecord,
+		Content:     getBondRecord,
+	}
+	err = h.router.Send(&msg)
+	if err != nil {
+		return nil, err
+	}
+
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+
+	h.log.Debug("wait getBondRecord from stafihub", "rSymbol", h.conn.symbol)
+	select {
+	case <-timer.C:
+		return nil, fmt.Errorf("get bond record from stafihub timeout")
+	case bondRecord := <-getBondRecord.BondRecord:
+		return &bondRecord, nil
+	}
 }

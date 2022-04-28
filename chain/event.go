@@ -3,6 +3,7 @@ package chain
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cosmos/cosmos-sdk/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
@@ -251,7 +252,6 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 
 }
 
-
 //todo blocked until tx is dealed on stafichain
 func (l Listener) SubmitProposalExeLiquidityBond(proposalExeLiquidityBond core.ProposalExeLiquidityBond) error {
 	m := core.Message{
@@ -263,5 +263,20 @@ func (l Listener) SubmitProposalExeLiquidityBond(proposalExeLiquidityBond core.P
 	if proposalExeLiquidityBond.State == xLedgerTypes.LiquidityBondStateVerifyOk {
 		l.log.Info("find liquiditybond transfer", "msg", m)
 	}
-	return l.submitMessage(&m)
+	err := l.submitMessage(&m)
+	if err != nil {
+		return err
+	}
+
+	// here we wait until bondrecord write on chain
+	for {
+		_, err := l.mustGetBondRecordFromStafiHub(proposalExeLiquidityBond.Denom, proposalExeLiquidityBond.Txhash)
+		if err != nil {
+			l.log.Warn("mustGetBondRecordFromStafiHub failed, will retry", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		break
+	}
+	return nil
 }

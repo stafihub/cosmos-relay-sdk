@@ -23,10 +23,14 @@ func (c *Client) SingleTransferTo(toAddr types.AccAddress, amount types.Coins) e
 func (c *Client) BroadcastTx(tx []byte) (string, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
-	res, err := c.clientCtx.BroadcastTx(tx)
+
+	cc, err := retry(func() (interface{}, error) {
+		return c.clientCtx.BroadcastTx(tx)
+	})
 	if err != nil {
 		return "", err
 	}
+	res := cc.(*types.TxResponse)
 	if res.Code != 0 {
 		return res.TxHash, fmt.Errorf("broadcast err with res.code: %d, res.Codespace: %s", res.Code, res.Codespace)
 	}

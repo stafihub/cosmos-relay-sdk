@@ -19,8 +19,8 @@ import (
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
-const retryLimit = 60
-const waitTime = time.Millisecond * 500
+const retryLimit = 600
+const waitTime = time.Second * 2
 
 //no 0x prefix
 func (c *Client) QueryTxByHash(hashHexStr string) (*types.TxResponse, error) {

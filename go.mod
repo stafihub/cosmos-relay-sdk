@@ -4,15 +4,15 @@ go 1.17
 
 require (
 	github.com/JFJun/go-substrate-crypto v1.0.1
-	github.com/cosmos/cosmos-sdk v0.45.2
+	github.com/cosmos/cosmos-sdk v0.45.4
 	github.com/cosmos/ibc-go/v3 v3.0.0
 	github.com/ethereum/go-ethereum v1.10.15
-	github.com/spf13/cobra v1.3.0
-	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220424164819-a68fb21fbf4e
-	github.com/stafihub/stafihub v0.0.0-20220411153517-276c54bbf4a8
+	github.com/spf13/cobra v1.4.0
+	github.com/stafihub/rtoken-relay-core/common v0.0.0-20220427142434-64563ec7bc63
+	github.com/stafihub/stafihub v0.0.0-20220424072429-cf6e7404228c
 	github.com/stafiprotocol/chainbridge v1.0.0
-	github.com/stretchr/testify v1.7.0
-	github.com/tendermint/tendermint v0.34.16
+	github.com/stretchr/testify v1.7.1
+	github.com/tendermint/tendermint v0.34.19
 )
 
 require (
@@ -120,7 +120,7 @@ require (
 
 replace (
 	github.com/99designs/keyring => github.com/cosmos/keyring v1.1.6
-	github.com/cosmos/cosmos-sdk => github.com/stafihub/cosmos-sdk v0.45.1-stafihub-0.0.4
+	github.com/cosmos/cosmos-sdk => github.com/tpkeeper/cosmos-sdk v0.45.4-stafihub-0.0.1
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 	github.com/keybase/go-keychain => github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4
 )
