@@ -425,7 +425,7 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 	return unSignedTx, txType, &totalAmountRet, nil
 }
 
-func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, receives []stafiHubXLedgerTypes.Unbonding,
+func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, receives []*stafiHubXLedgerTypes.Unbonding,
 	logger log.Logger) ([]byte, []xBankTypes.Output, error) {
 
 	outPuts := make([]xBankTypes.Output, 0)

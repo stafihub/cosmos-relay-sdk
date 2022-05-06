@@ -431,7 +431,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	unSignedTx, outPuts, err := GetTransferUnsignedTx(poolClient, poolAddress, eventActiveReported.PoolUnbond.Unbondings, h.log)
+	unSignedTx, outPuts, err := GetTransferUnsignedTx(poolClient, poolAddress, eventActiveReported.PoolUnbond, h.log)
 	if err != nil && err != ErrNoOutPuts {
 		h.log.Error("GetTransferUnsignedTx failed", "pool address", poolAddressStr, "err", err)
 		return err
