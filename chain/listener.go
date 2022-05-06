@@ -230,13 +230,13 @@ func (h *Listener) mustGetBondRecordFromStafiHub(denom, txHash string) (bondReco
 		bondRecord, err := h.getBondRecordFromStafiHub(param)
 		if err != nil {
 			retry++
-			h.log.Warn("getBondRecordFromStafiHub failed, will retry.", "err", err)
+			h.log.Debug("getBondRecordFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if len(bondRecord.Denom) == 0 || len(bondRecord.Pool) == 0 {
 			retry++
-			h.log.Warn("getBondRecordFromStafiHub failed, will retry.")
+			h.log.Debug("getBondRecordFromStafiHub failed, will retry.")
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
