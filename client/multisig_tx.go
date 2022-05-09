@@ -107,6 +107,39 @@ func (c *Client) GenMultiSigRawUnDelegateTxV2(delAddr types.AccAddress, valAddrs
 	return c.GenMultiSigRawTx(msgs...)
 }
 
+//generate unsigned unDelegate+withdraw tx
+func (c *Client) GenMultiSigRawUnDelegateTxV3(delAddr types.AccAddress, valAddrs []types.ValAddress,
+	amounts map[string]types.Int, withdrawValAddress []types.ValAddress) ([]byte, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	if len(valAddrs) == 0 {
+		return nil, errors.New("no valAddrs")
+	}
+	msgs := make([]types.Msg, 0)
+	
+	//gen undelegate
+	for _, valAddr := range valAddrs {
+		amount := types.NewCoin(c.GetDenom(), amounts[valAddr.String()])
+		if amount.IsZero() {
+			return nil, errors.New("amount is zero")
+		}
+		msg := xStakingTypes.NewMsgUndelegate(delAddr, valAddr, amount)
+		msgs = append(msgs, msg)
+	}
+
+	//gen withdraw
+	for _, valAddr := range withdrawValAddress {
+		msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
+		if err := msg.ValidateBasic(); err != nil {
+			return nil, err
+		}
+		msgs = append(msgs, msg)
+	}
+
+	return c.GenMultiSigRawTx(msgs...)
+}
+
 //generate unsigned reDelegate tx
 func (c *Client) GenMultiSigRawReDelegateTx(delAddr types.AccAddress, valSrcAddr, valDstAddr types.ValAddress, amount types.Coin) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
@@ -148,7 +181,7 @@ func (c *Client) GenMultiSigRawWithdrawRewardThenDeleTx(delAddr types.AccAddress
 	return c.GenMultiSigRawTx(msg, msg2)
 }
 
-//generate unsigned withdraw all reward then delegate reward tx
+//generate unsigned withdraw all reward tx
 func (c *Client) GenMultiSigRawWithdrawAllRewardTx(delAddr types.AccAddress, height int64) ([]byte, error) {
 	delValsRes, err := c.QueryDelegations(delAddr, height)
 	if err != nil {

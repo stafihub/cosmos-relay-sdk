@@ -332,9 +332,177 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 	}
 }
 
+//if bond == unbond gen withdraw tx
+//if bond > unbond gen delegate tx
+//if bond < unbond gen undelegate+withdraw tx
+func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
+	poolAddr types.AccAddress, height int64, targets []types.ValAddress) (unSignedTx []byte, unSignedType int, err error) {
+
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	poolAddrStr := poolAddr.String()
+	done()
+
+	switch bond.Cmp(unbond) {
+	case 0:
+		unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTx(
+			poolAddr,
+			height)
+		unSignedType = 0
+		return
+	case 1:
+		valAddrs := targets
+		valAddrsLen := len(valAddrs)
+		//check valAddrs length
+		if valAddrsLen == 0 {
+			return nil, 0, fmt.Errorf("no target valAddrs, pool: %s", poolAddrStr)
+		}
+
+		val := bond.Sub(bond, unbond)
+		val = val.Div(val, big.NewInt(int64(valAddrsLen)))
+		unSignedTx, err = client.GenMultiSigRawDelegateTx(
+			poolAddr,
+			valAddrs,
+			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)))
+		unSignedType = 1
+		return
+	case -1:
+		var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
+		deleRes, err = client.QueryDelegations(poolAddr, height)
+		if err != nil {
+			return nil, 0, fmt.Errorf("QueryDelegations failed: %s", err)
+		}
+
+		totalDelegateAmount := types.NewInt(0)
+		valAddrs := make([]types.ValAddress, 0)
+		deleAmount := make(map[string]types.Int)
+
+		//get validators amount>=3
+		for _, dele := range deleRes.GetDelegationResponses() {
+			//filter old validator,we say validator is old if amount < 3 uatom
+			if dele.GetBalance().Amount.LT(types.NewInt(3)) {
+				continue
+			}
+
+			done := core.UseSdkConfigContext(client.GetAccountPrefix())
+			valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
+			if err != nil {
+				done()
+				return nil, 0, err
+			}
+
+			valAddrs = append(valAddrs, valAddr)
+			totalDelegateAmount = totalDelegateAmount.Add(dele.GetBalance().Amount)
+			deleAmount[valAddr.String()] = dele.GetBalance().Amount
+			done()
+		}
+
+		//check valAddrs length
+		valAddrsLen := len(valAddrs)
+		if valAddrsLen == 0 {
+			return nil, 0, fmt.Errorf("no valAddrs, pool: %s", poolAddr)
+		}
+
+		//check totalDelegateAmount
+		if totalDelegateAmount.LT(types.NewInt(3 * int64(valAddrsLen))) {
+			return nil, 0, fmt.Errorf("validators have no reserve value to unbond")
+		}
+
+		//make val <= totalDelegateAmount-3*len and we reserve 3 uatom
+		val := new(big.Int).Sub(unbond, bond)
+		willUsetotalDelegateAmount := totalDelegateAmount.Sub(types.NewInt(3 * int64(valAddrsLen)))
+		if val.Cmp(willUsetotalDelegateAmount.BigInt()) > 0 {
+			return nil, 0, fmt.Errorf("no enough value can be used to unbond, pool: %s", poolAddr)
+		}
+		willUseTotalVal := types.NewIntFromBigInt(val)
+
+		//remove validator who's unbonding >= 7
+		canUseValAddrs := make([]types.ValAddress, 0)
+		for _, val := range valAddrs {
+			res, err := client.QueryUnbondingDelegation(poolAddr, val, height)
+			if err != nil {
+				// unbonding empty case
+				if strings.Contains(err.Error(), "NotFound") {
+					canUseValAddrs = append(canUseValAddrs, val)
+					continue
+				}
+				return nil, 0, err
+			}
+			if len(res.GetUnbond().Entries) < 7 {
+				canUseValAddrs = append(canUseValAddrs, val)
+			}
+		}
+		valAddrs = canUseValAddrs
+		if len(valAddrs) == 0 {
+			return nil, 0, fmt.Errorf("no valAddrs can be used to unbond, pool: %s", poolAddr)
+		}
+
+		//sort validators by delegate amount
+		done := core.UseSdkConfigContext(client.GetAccountPrefix())
+		sort.Slice(valAddrs, func(i int, j int) bool {
+			return deleAmount[valAddrs[i].String()].
+				GT(deleAmount[valAddrs[j].String()])
+		})
+
+		//choose validators to be undelegated
+		choosedVals := make([]types.ValAddress, 0)
+		choosedAmount := make(map[string]types.Int)
+
+		selectedAmount := types.NewInt(0)
+		enough := false
+		for _, validator := range valAddrs {
+			nowValMaxUnDeleAmount := deleAmount[validator.String()].Sub(types.NewInt(3))
+			//if we find all validators needed
+			if selectedAmount.Add(nowValMaxUnDeleAmount).GTE(willUseTotalVal) {
+				willUseChoosedAmount := willUseTotalVal.Sub(selectedAmount)
+
+				choosedVals = append(choosedVals, validator)
+				choosedAmount[validator.String()] = willUseChoosedAmount
+				selectedAmount = selectedAmount.Add(willUseChoosedAmount)
+
+				enough = true
+				break
+			}
+
+			choosedVals = append(choosedVals, validator)
+			choosedAmount[validator.String()] = nowValMaxUnDeleAmount
+			selectedAmount = selectedAmount.Add(nowValMaxUnDeleAmount)
+		}
+
+		if !enough {
+			done()
+			return nil, 0, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddrStr)
+		}
+
+		// filter withdraw validators
+		withdrawVals := make([]types.ValAddress, 0)
+		for valAddressStr := range deleAmount {
+			if _, exist := choosedAmount[valAddressStr]; !exist {
+				valAddr, err := types.ValAddressFromBech32(valAddressStr)
+				if err != nil {
+					done()
+					return nil, 0, err
+				}
+				withdrawVals = append(withdrawVals, valAddr)
+			}
+		}
+		done()
+
+		unSignedTx, err = client.GenMultiSigRawUnDelegateTxV3(
+			poolAddr,
+			choosedVals,
+			choosedAmount,
+			withdrawVals)
+		unSignedType = -1
+		return
+	default:
+		return nil, 0, fmt.Errorf("unreached case err")
+	}
+}
+
+//Notice: delegate/undelegate/withdraw operates will withdraw all reward
 //if bond > unbond only gen delegate tx  (txType: 2)
 //if bond <= unbond
-//	(1)if balanceAmount > rewardAmount of era height ,gen withdraw and delegate tx  (txType: 3)
+//	(1)if balanceAmount > rewardAmount of era height ,gen delegate tx  (txType: 3)
 //	(2)if balanceAmount < rewardAmount of era height, gen withdraw tx  (txTpye: 1)
 func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, height int64,
 	bond, unBond *big.Int) ([]byte, int, *types.Int, error) {
@@ -425,6 +593,41 @@ func GetClaimRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddres
 	return unSignedTx, txType, &totalAmountRet, nil
 }
 
+//Notice: delegate/undelegate/withdraw operates will withdraw all reward
+//all delegations had withdraw all reward in eraUpdatedEvent handler
+//(0)if rewardAmount of  height == 0, hubClient.ErrNoMsgs
+//(1)else gen delegate tx
+func GetDelegateRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, height int64) ([]byte, *types.Int, error) {
+	//get reward of height
+	rewardResOnHeight, err := client.QueryDelegationTotalRewards(poolAddr, height)
+	if err != nil {
+		return nil, nil, err
+	}
+	// no delegation just return
+	if len(rewardResOnHeight.Rewards) == 0 {
+		return nil, nil, hubClient.ErrNoMsgs
+	}
+
+	unSignedTx, err := client.GenMultiSigRawDeleRewardTx(
+		poolAddr,
+		height)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	decodedTx, err := client.GetTxConfig().TxJSONDecoder()(unSignedTx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("GetTxConfig().TxDecoder() failed: %s, unSignedTx: %s", err, string(unSignedTx))
+	}
+	totalAmountRet := types.NewInt(0)
+	for _, msg := range decodedTx.GetMsgs() {
+		if m, ok := msg.(*xStakingTypes.MsgDelegate); ok {
+			totalAmountRet = totalAmountRet.Add(m.Amount.Amount)
+		}
+	}
+	return unSignedTx, &totalAmountRet, nil
+}
+
 func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, receives []*stafiHubXLedgerTypes.Unbonding,
 	logger log.Logger) ([]byte, []xBankTypes.Output, error) {
 
@@ -470,15 +673,19 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	done()
 
 	for {
+		var err error
 		if retry <= 0 {
 			h.log.Error("checkAndSend broadcast tx reach retry limit",
-				"pool address", poolAddressStr)
+				"pool address", poolAddressStr,
+				"txHash", txHashHexStr,
+				"err", err)
 			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s", poolAddressStr)
 		}
 		//check on chain
-		res, err := poolClient.QueryTxByHash(txHashHexStr)
+		var res *types.TxResponse
+		res, err = poolClient.QueryTxByHash(txHashHexStr)
 		if err != nil || res.Empty() || res.Code != 0 {
-			h.log.Warn(fmt.Sprintf(
+			h.log.Debug(fmt.Sprintf(
 				"checkAndSend QueryTxByHash failed. will rebroadcast after %f second",
 				BlockRetryInterval.Seconds()),
 				"tx hash", txHashHexStr,
@@ -487,7 +694,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			//broadcast if not on chain
 			_, err = poolClient.BroadcastTx(txBts)
 			if err != nil && err != errType.ErrTxInMempoolCache {
-				h.log.Warn("checkAndSend BroadcastTx failed  will retry", "err", err)
+				h.log.Debug("checkAndSend BroadcastTx failed  will retry", "err", err)
 			}
 			time.Sleep(BlockRetryInterval)
 			retry--
@@ -599,18 +806,18 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	retry := 0
 	for {
 		if retry > BlockRetryLimit {
-			return nil, fmt.Errorf("getSignatureFromStafiHub reach retry limit")
+			return nil, fmt.Errorf("getSignatureFromStafiHub reach retry limit, param: %v", param)
 		}
 		sigs, err := h.getSignatureFromStafiHub(param)
 		if err != nil {
 			retry++
-			h.log.Warn("getSignatureFromStafiHub failed, will retry.", "err", err)
+			h.log.Debug("getSignatureFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if len(sigs) < int(threshold) {
 			retry++
-			h.log.Warn("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
+			h.log.Debug("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}

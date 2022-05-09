@@ -89,8 +89,8 @@ func (h *Handler) handleMessage(m *core.Message) error {
 // handle eraPoolUpdated event
 // 1
 //   1) bond>unbond, gen bond multiSig unsigned tx
-//   2) bond<unbond, gen unbond multiSig unsigned tx
-//   3) bond==unbond, no need bond/unbond, just bondreport to stafihub
+//   2) bond<unbond, gen unbond+withdraw multiSig unsigned tx
+//   3) bond==unbond, gen withdraw multiSig unsigned tx
 // 2 sign it with subKey
 // 3 send signature to stafihub
 // 4 wait until signature enough, then send tx to cosmoshub
@@ -120,15 +120,8 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
-	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	//check bond/unbond is needed
-	//bond report if no need
-	bondCmpUnbondResult := snap.Chunk.Bond.BigInt().Cmp(snap.Chunk.Unbond.BigInt())
-	if bondCmpUnbondResult == 0 {
-		h.log.Info("EvtEraPoolUpdated bond equal to unbond, no need to bond/unbond")
-		return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
-	}
+	threshold := h.conn.poolThreshold[poolAddressStr]
 
 	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
@@ -138,7 +131,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-	unSignedTx, err := GetBondUnbondUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators)
+	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators)
 	if err != nil {
 		h.log.Error("GetBondUnbondUnsignedTx failed",
 			"pool address", poolAddressStr,
@@ -182,17 +175,24 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), uint8(i))
 		proposalIdHexStr := hex.EncodeToString(proposalId)
 
-		if bondCmpUnbondResult > 0 {
+		switch unSignedType {
+		case 0:
+			h.log.Info("processEraPoolUpdatedEvt gen withdraw Tx",
+				"pool address", poolAddressStr,
+				"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
+				"proposalId", proposalIdHexStr)
+		case 1:
 			h.log.Info("processEraPoolUpdatedEvt gen unsigned bond Tx",
 				"pool address", poolAddressStr,
 				"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
-		} else {
-			h.log.Info("processEraPoolUpdatedEvt gen unsigned unbond Tx",
+		case -1:
+			h.log.Info("processEraPoolUpdatedEvt gen unsigned unbond+withdraw Tx",
 				"pool address", poolAddressStr,
 				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
 		}
+
 		// send signature to stafihub
 		submitSignature := core.ParamSubmitSignature{
 			Denom:     snap.GetDenom(),
@@ -231,10 +231,10 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 }
 
 // handle bondReportedEvent from stafihub
-// 1 query reward on era height,
+// 1 query reward on last withdraw tx  height,
 //   1) if no reward, just send active report to stafihub
 //   2) if has reward
-//     1) gen (claim reward && delegate) or (claim reward) unsigned tx
+//     1) gen delegate unsigned tx
 //     2) sign it with subKey
 //     3) send signature to stafihub
 //     4) wait until signature enough and send tx to cosmoshub
@@ -267,15 +267,16 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
+	_, _, height, err := poolClient.GetLastTxIncludeWithdraw(poolAddressStr)
 	if err != nil {
-		h.log.Error("GetHeightByEra failed",
+		h.log.Error("GetLastTxIncludeWithdraw failed",
 			"pool address", poolAddressStr,
 			"era", snap.Era,
 			"err", err)
 		return err
 	}
-	unSignedTx, genTxType, totalDeleAmount, err := GetClaimRewardUnsignedTx(poolClient, poolAddress, height, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt())
+	height -= 1
+	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTx(poolClient, poolAddress, height)
 	if err != nil && err != hubClient.ErrNoMsgs {
 		h.log.Error("GetClaimRewardUnsignedTx failed",
 			"pool address", poolAddressStr,
@@ -339,26 +340,10 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		proposalId := GetClaimRewardProposalId(shotIdArray, uint64(height), uint8(i))
 		proposalIdHexStr := hex.EncodeToString(proposalId)
 
-		switch genTxType {
-		case 1:
-			h.log.Info("processBondReportEvent gen unsigned claim reward Tx",
-				"pool address", poolAddressStr,
-				"total delegate amount", totalDeleAmount.String(),
-				"proposalId", proposalIdHexStr)
-
-		case 2:
-			h.log.Info("processBondReportEvent gen unsigned delegate reward Tx",
-				"pool address", poolAddressStr,
-				"total delegate amount", totalDeleAmount.String(),
-				"proposalId", proposalIdHexStr)
-
-		case 3:
-			h.log.Info("processBondReportEvent gen unsigned claim and delegate reward Tx",
-				"pool address", poolAddressStr,
-				"total delegate amount", totalDeleAmount.String(),
-				"proposalId", proposalIdHexStr)
-
-		}
+		h.log.Info("processBondReportEvent gen unsigned delegate reward Tx",
+			"pool address", poolAddressStr,
+			"total delegate amount", totalDeleAmount.String(),
+			"proposalId", proposalIdHexStr)
 
 		// send signature to stafi
 		submitSignature := core.ParamSubmitSignature{

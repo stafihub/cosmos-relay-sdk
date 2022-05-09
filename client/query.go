@@ -12,6 +12,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
 	xAuthTx "github.com/cosmos/cosmos-sdk/x/auth/tx"
+	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
@@ -281,6 +282,37 @@ func (c *Client) QueryBondedDenom() (*xStakeTypes.QueryParamsResponse, error) {
 		return nil, err
 	}
 	return cc.(*xStakeTypes.QueryParamsResponse), nil
+}
+
+func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string, int64, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
+	done()
+	txs, err := c.GetTxs(
+		[]string{
+			fmt.Sprintf("transfer.recipient='%s'", delegatorAddr),
+			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
+		}, 1, 1, "desc")
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	if len(txs.Txs) != 1 {
+		return "", "", 0, fmt.Errorf("no tx include withdraw")
+	}
+	txValue := txs.Txs[0].Tx.Value
+
+	tx, err := c.GetTxConfig().TxDecoder()(txValue)
+	if err != nil {
+		return "", "", 0, err
+	}
+	memoTx, ok := tx.(types.TxWithMemo)
+	if !ok {
+		return "", "", 0, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
+	}
+	memoInTx := memoTx.GetMemo()
+
+	return txs.Txs[0].TxHash, memoInTx, txs.Txs[0].Height, nil
 }
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {

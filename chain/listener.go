@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"time"
 
+	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
@@ -18,28 +20,37 @@ var (
 )
 
 type Listener struct {
-	name       string
-	symbol     core.RSymbol
-	startBlock uint64
-	blockstore blockstore.Blockstorer
-	conn       *Connection
-	router     *core.Router
-	log        log.Logger
-	stopChan   <-chan struct{}
-	sysErrChan chan<- error
+	name               string
+	symbol             core.RSymbol
+	startBlock         uint64
+	blockstore         blockstore.Blockstorer
+	conn               *Connection
+	router             *core.Router
+	log                log.Logger
+	distributionAddStr string
+	stopChan           <-chan struct{}
+	sysErrChan         chan<- error
 }
 
 func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs blockstore.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
-
+	client, err := conn.GetOnePoolClient()
+	if err != nil {
+		sysErr <- fmt.Errorf("no pool client")
+		return nil
+	}
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
+	done()
 	return &Listener{
-		name:       name,
-		symbol:     symbol,
-		startBlock: startBlock,
-		blockstore: bs,
-		conn:       conn,
-		log:        log,
-		stopChan:   stopChan,
-		sysErrChan: sysErr,
+		name:               name,
+		symbol:             symbol,
+		startBlock:         startBlock,
+		distributionAddStr: moduleAddressStr,
+		blockstore:         bs,
+		conn:               conn,
+		log:                log,
+		stopChan:           stopChan,
+		sysErrChan:         sysErr,
 	}
 }
 

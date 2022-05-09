@@ -75,6 +75,11 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		from := event.Attributes[1].Value
 		amountStr := event.Attributes[2].Value
 
+		// skip reward event
+		if strings.EqualFold(from, l.distributionAddStr) {
+			return nil
+		}
+
 		coin, err := types.ParseCoinNormalized(amountStr)
 		if err != nil {
 			return fmt.Errorf("amount format err, %s", err)
