@@ -117,7 +117,7 @@ func (c *Client) GenMultiSigRawUnDelegateTxV3(delAddr types.AccAddress, valAddrs
 		return nil, errors.New("no valAddrs")
 	}
 	msgs := make([]types.Msg, 0)
-	
+
 	//gen undelegate
 	for _, valAddr := range valAddrs {
 		amount := types.NewCoin(c.GetDenom(), amounts[valAddr.String()])

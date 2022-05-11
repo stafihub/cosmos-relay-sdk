@@ -23,6 +23,8 @@ import (
 const retryLimit = 600
 const waitTime = time.Second * 2
 
+var ErrNoTxIncludeWithdraw = fmt.Errorf("no tx include withdraw")
+
 //no 0x prefix
 func (c *Client) QueryTxByHash(hashHexStr string) (*types.TxResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
@@ -248,8 +250,19 @@ func (c *Client) GetTxsWithParseErrSkip(events []string, page, limit int, orderB
 }
 
 // will skip txs that parse failed
-func (c *Client) GetBlockTxs(height int64) ([]*types.TxResponse, error) {
+func (c *Client) GetBlockTxsWithParseErrSkip(height int64) ([]*types.TxResponse, error) {
 	searchTxs, err := c.GetTxsWithParseErrSkip([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
+	if err != nil {
+		return nil, err
+	}
+	if searchTxs.TotalCount != searchTxs.Count {
+		return nil, fmt.Errorf("tx total count overflow, total: %d", searchTxs.TotalCount)
+	}
+	return searchTxs.GetTxs(), nil
+}
+
+func (c *Client) GetBlockTxs(height int64) ([]*types.TxResponse, error) {
+	searchTxs, err := c.GetTxs([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +311,7 @@ func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string,
 	}
 
 	if len(txs.Txs) != 1 {
-		return "", "", 0, fmt.Errorf("no tx include withdraw")
+		return "", "", 0, ErrNoTxIncludeWithdraw
 	}
 	txValue := txs.Txs[0].Tx.Value
 
@@ -325,7 +338,6 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 	if err != nil {
 		return 0, err
 	}
-	// fmt.Println("cur blocknumber", blockNumber, "timestamp", timestamp, "targettimestamp", targetTimestamp)
 	seconds := timestamp - targetTimestamp
 	if seconds < 0 {
 		return 0, fmt.Errorf("timestamp can not less than targetTimestamp")
@@ -336,38 +348,16 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 		tmpTargetBlock = 1
 	}
 
-	// fmt.Println("tmpTargetBLock", tmpTargetBlock)
-
 	block, err := c.QueryBlock(tmpTargetBlock)
 	if err != nil {
 		return 0, err
 	}
-
-	// findDuTime := block.Block.Header.Time.Unix() - targetTimestamp
-	// fmt.Println("findDuTime", findDuTime)
-
-	// if findDuTime == 0 {
-	// 	return block.Block.Height, nil
-	// }
-
-	// if findDuTime > 7 || findDuTime < -7 {
-	// 	tmpTargetBlock -= findDuTime / 7
-
-	// 	if tmpTargetBlock <= 0 {
-	// 		tmpTargetBlock = 1
-	// 	}
-	// 	block, err = c.QueryBlock(tmpTargetBlock)
-	// 	if err != nil {
-	// 		return 0, err
-	// 	}
-	// }
 
 	var afterBlockNumber int64
 	var preBlockNumber int64
 	if block.Block.Header.Time.Unix() > targetTimestamp {
 		afterBlockNumber = block.Block.Height
 		for {
-			// fmt.Println("block", afterBlockNumber-1)
 			block, err := c.QueryBlock(afterBlockNumber - 1)
 			if err != nil {
 				return 0, err
@@ -382,7 +372,6 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 	} else {
 		preBlockNumber = block.Block.Height
 		for {
-			// fmt.Println("block", preBlockNumber+1)
 			block, err := c.QueryBlock(preBlockNumber + 1)
 			if err != nil {
 				return 0, err

@@ -26,7 +26,8 @@ func initClient() {
 
 	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "https://test-terra-rpc1.stafi.io:443", "iaa")
-	client, err = hubClient.NewClient(nil, "", "", "https://test-cosmos-rpc1.stafihub.io:443", "cosmos")
+	// client, err = hubClient.NewClient(nil, "", "", "https://test-cosmos-rpc1.stafihub.io:443", "cosmos")
+	client, err = hubClient.NewClient(nil, "", "", "https://cosmos-rpc1.stafi.io:443", "cosmos")
 	if err != nil {
 		panic(err)
 	}
@@ -58,13 +59,18 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 func TestClient_GetEvent(t *testing.T) {
 	initClient()
-
-	txHash, height, memo, err := client.GetLastTxIncludeWithdraw("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
-
+	tx, err := client.GetBlockTxs(100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(txHash, memo, height)
+	t.Log(tx)
+
+	// txHash, height, memo, err := client.GetLastTxIncludeWithdraw("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
+
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// t.Log(txHash, memo, height)
 	// client.SetAccountPrefix("terra")
 	// txs, err := client.GetTxs(
 	// 	[]string{

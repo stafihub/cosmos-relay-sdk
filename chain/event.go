@@ -30,7 +30,7 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 	if err != nil {
 		return err
 	}
-	txs, err := poolClient.GetBlockTxs(currentBlock)
+	txs, err := poolClient.GetBlockTxsWithParseErrSkip(currentBlock)
 	if err != nil {
 		return err
 	}

@@ -332,7 +332,7 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 	}
 }
 
-//if bond == unbond gen withdraw tx
+//if bond == unbond if no delegation before, return errNoMsgs, else gen withdraw multiSig unsigned tx
 //if bond > unbond gen delegate tx
 //if bond < unbond gen undelegate+withdraw tx
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
@@ -344,6 +344,22 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 	switch bond.Cmp(unbond) {
 	case 0:
+		// return errnoMsgs if no delegation before
+		var delegationRes *xStakingTypes.QueryDelegatorDelegationsResponse
+		delegationRes, err = client.QueryDelegations(poolAddr, height)
+		if err != nil {
+			if strings.Contains(err.Error(), "unable to find delegations for address") {
+				err = hubClient.ErrNoMsgs
+				return
+			} else {
+				return
+			}
+		}
+		if len(delegationRes.DelegationResponses) == 0 {
+			err = hubClient.ErrNoMsgs
+			return
+		}
+
 		unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTx(
 			poolAddr,
 			height)
@@ -666,20 +682,21 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
 	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
-	retry := BlockRetryLimit
+
 	txHashHexStr := hex.EncodeToString(txHash)
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddressStr := poolAddress.String()
 	done()
 
+	retry := BlockRetryLimit
+	var err error
 	for {
-		var err error
 		if retry <= 0 {
 			h.log.Error("checkAndSend broadcast tx reach retry limit",
 				"pool address", poolAddressStr,
 				"txHash", txHashHexStr,
 				"err", err)
-			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s", poolAddressStr)
+			return fmt.Errorf("checkAndSend broadcast tx reach retry limit pool address: %s,err: %s", poolAddressStr, err)
 		}
 		//check on chain
 		var res *types.TxResponse

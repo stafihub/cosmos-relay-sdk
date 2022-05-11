@@ -90,7 +90,7 @@ func (h *Handler) handleMessage(m *core.Message) error {
 // 1
 //   1) bond>unbond, gen bond multiSig unsigned tx
 //   2) bond<unbond, gen unbond+withdraw multiSig unsigned tx
-//   3) bond==unbond, gen withdraw multiSig unsigned tx
+//   3) bond==unbond, if no delegation before, just sendbondreport, else gen withdraw multiSig unsigned tx
 // 2 sign it with subKey
 // 3 send signature to stafihub
 // 4 wait until signature enough, then send tx to cosmoshub
@@ -131,13 +131,18 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
+
 	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators)
 	if err != nil {
-		h.log.Error("GetBondUnbondUnsignedTx failed",
-			"pool address", poolAddressStr,
-			"height", height,
-			"err", err)
-		return err
+		if err == hubClient.ErrNoMsgs {
+			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
+		} else {
+			h.log.Error("GetBondUnbondUnsignedTx failed",
+				"pool address", poolAddressStr,
+				"height", height,
+				"err", err)
+			return err
+		}
 	}
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
@@ -267,43 +272,58 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	_, _, height, err := poolClient.GetLastTxIncludeWithdraw(poolAddressStr)
+	var height int64
+	_, _, height, err = poolClient.GetLastTxIncludeWithdraw(poolAddressStr)
 	if err != nil {
-		h.log.Error("GetLastTxIncludeWithdraw failed",
-			"pool address", poolAddressStr,
-			"era", snap.Era,
-			"err", err)
-		return err
-	}
-	height -= 1
-	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTx(poolClient, poolAddress, height)
-	if err != nil && err != hubClient.ErrNoMsgs {
-		h.log.Error("GetClaimRewardUnsignedTx failed",
-			"pool address", poolAddressStr,
-			"height", height,
-			"err", err)
-		return err
-	}
-
-	//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
-	if err == hubClient.ErrNoMsgs {
-		total := types.NewInt(0)
-		delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
-		if err != nil {
-			if !strings.Contains(err.Error(), "unable to find delegations for address") {
-				h.log.Error("QueryDelegations failed",
-					"pool", poolAddressStr,
+		// incase of the bond of first time
+		if err == hubClient.ErrNoTxIncludeWithdraw {
+			height, err = poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
+			if err != nil {
+				h.log.Error("GetHeightByEra failed",
+					"pool address", poolAddressStr,
+					"err", snap.Era,
 					"err", err)
 				return err
 			}
 		} else {
-			for _, dele := range delegationsRes.GetDelegationResponses() {
-				total = total.Add(dele.Balance.Amount)
-			}
+
+			h.log.Error("GetLastTxIncludeWithdraw failed",
+				"pool address", poolAddressStr,
+				"era", snap.Era,
+				"err", err)
+			return err
 		}
-		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
-		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
+	height -= 1
+	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTx(poolClient, poolAddress, height)
+	if err != nil {
+		if err == hubClient.ErrNoMsgs {
+			//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
+			total := types.NewInt(0)
+			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
+			if err != nil {
+				if !strings.Contains(err.Error(), "unable to find delegations for address") {
+					h.log.Error("QueryDelegations failed",
+						"pool", poolAddressStr,
+						"err", err)
+					return err
+				}
+			} else {
+				for _, dele := range delegationsRes.GetDelegationResponses() {
+					total = total.Add(dele.Balance.Amount)
+				}
+			}
+			h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
+			return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
+		} else {
+			h.log.Error("GetClaimRewardUnsignedTx failed",
+				"pool address", poolAddressStr,
+				"height", height,
+				"err", err)
+			return err
+		}
+	}
+
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
 		SnapshotId: eventBondReported.ShotId,
