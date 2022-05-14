@@ -25,7 +25,7 @@ var (
 	cfg = config.RawChainConfig{
 		Name:         "testChain",
 		Rsymbol:      "ratom2",
-		Endpoint:     "http://127.0.0.1:36657",
+		EndpointList: []string{"http://127.0.0.1:36657"},
 		KeystorePath: "/Users/tpkeeper/.gaia",
 		Opts:         option,
 	}

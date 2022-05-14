@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
@@ -17,12 +18,14 @@ import (
 
 //cosmos client
 type Client struct {
-	clientCtx     client.Context
-	rpcClient     rpcClient.Client
-	gasPrice      string
-	denom         string
-	accountNumber uint64
-	accountPrefix string
+	clientCtx           client.Context
+	rpcClientList       []rpcClient.Client
+	gasPrice            string
+	denom               string
+	accountNumber       uint64
+	accountPrefix       string
+	rpcClientIndex      int
+	changeEndpointMutex sync.Mutex
 }
 
 func (c *Client) GetAccountPrefix() string {
@@ -32,17 +35,29 @@ func (c *Client) GetAccountPrefix() string {
 func (c *Client) SetAccountPrefix(prefix string) {
 	c.accountPrefix = prefix
 }
-func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint, accountPrefix string) (*Client, error) {
+func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endPointList []string) (*Client, error) {
+	if len(endPointList) == 0 {
+		return nil, fmt.Errorf("no endpoint")
+	}
+
 	encodingConfig := MakeEncodingConfig()
-	var retClient *Client
+	retClient := &Client{
+		accountPrefix:  accountPrefix,
+		rpcClientIndex: 0,
+	}
+
+	for _, endPoint := range endPointList {
+		rpcClient, err := rpcHttp.New(endPoint, "/websocket")
+		if err != nil {
+			return nil, err
+		}
+		retClient.rpcClientList = append(retClient.rpcClientList, rpcClient)
+	}
+
 	if len(fromName) != 0 {
 		info, err := k.Key(fromName)
 		if err != nil {
 			return nil, fmt.Errorf("keyring get address from name:%s err: %s", fromName, err)
-		}
-		rpcClient, err := rpcHttp.New(endPoint, "/websocket")
-		if err != nil {
-			return nil, err
 		}
 
 		initClientCtx := client.Context{}.
@@ -53,18 +68,13 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint, accountPrefix st
 			WithInput(os.Stdin).
 			WithAccountRetriever(xAuthTypes.AccountRetriever{}).
 			WithBroadcastMode(flags.BroadcastBlock).
-			WithClient(rpcClient).
+			WithClient(retClient.rpcClientList[0]).
 			WithSkipConfirmation(true).         //skip password confirm
 			WithFromName(fromName).             //keyBase need FromName to find key info
 			WithFromAddress(info.GetAddress()). //accountRetriever need FromAddress
 			WithKeyring(k)
 
-		retClient = &Client{
-			clientCtx:     initClientCtx,
-			rpcClient:     rpcClient,
-			accountPrefix: accountPrefix,
-		}
-
+		retClient.clientCtx = initClientCtx
 		chaindId, err := retClient.GetChainId()
 		if err != nil {
 			return nil, err
@@ -87,11 +97,6 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint, accountPrefix st
 			return nil, err
 		}
 	} else {
-		rpcClient, err := rpcHttp.New(endPoint, "/websocket")
-		if err != nil {
-			return nil, err
-		}
-
 		initClientCtx := client.Context{}.
 			WithCodec(encodingConfig.Marshaler).
 			WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
@@ -100,14 +105,10 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, endPoint, accountPrefix st
 			WithInput(os.Stdin).
 			WithAccountRetriever(xAuthTypes.AccountRetriever{}).
 			WithBroadcastMode(flags.BroadcastBlock).
-			WithClient(rpcClient).
+			WithClient(retClient.rpcClientList[0]).
 			WithSkipConfirmation(true) //skip password confirm
 
-		retClient = &Client{
-			clientCtx:     initClientCtx,
-			rpcClient:     rpcClient,
-			accountPrefix: accountPrefix,
-		}
+		retClient.clientCtx = initClientCtx
 		bondedDenom, err := retClient.QueryBondedDenom()
 		if err != nil {
 			return nil, err
@@ -177,5 +178,14 @@ func (c *Client) Ctx() client.Context {
 }
 
 func (c *Client) GetRpcClient() *rpcClient.Client {
-	return &c.rpcClient
+	return &c.rpcClientList[0]
+}
+
+func (c *Client) ChangeEndpoint() {
+	c.changeEndpointMutex.Lock()
+	defer c.changeEndpointMutex.Unlock()
+
+	willUseIndex := (c.rpcClientIndex + 1) % len(c.rpcClientList)
+	c.clientCtx = c.clientCtx.WithClient(c.rpcClientList[willUseIndex])
+	c.rpcClientIndex = willUseIndex
 }

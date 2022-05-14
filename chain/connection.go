@@ -75,7 +75,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		if err != nil {
 			return nil, err
 		}
-		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, cfg.Endpoint, option.AccountPrefix)
+		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, option.AccountPrefix, cfg.EndpointList)
 		if err != nil {
 			return nil, err
 		}
