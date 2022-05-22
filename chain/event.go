@@ -96,6 +96,17 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 			done()
 			return err
 		}
+		// only support one msg in one tx
+		if len(tx.GetMsgs()) != 1 {
+			l.log.Debug("got multi msgs in one tx", "txHash", txHash, "event", event)
+			done()
+			return nil
+		}
+		if types.MsgTypeURL(tx.GetMsgs()[0]) != types.MsgTypeURL((*xBankTypes.MsgSend)(nil)) {
+			l.log.Debug("msg type not msgsend", "txHash", txHash, "event", event)
+			done()
+			return nil
+		}
 		memoTx, ok := tx.(types.TxWithMemo)
 		if !ok {
 			done()
