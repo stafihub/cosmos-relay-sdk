@@ -25,9 +25,8 @@ func initClient() {
 	// }
 
 	var err error
-	// client, err = hubClient.NewClient(nil, "", "", "https://test-terra-rpc1.stafi.io:443", "iaa")
-	// client, err = hubClient.NewClient(nil, "", "", "https://test-cosmos-rpc1.stafihub.io:443", "cosmos")
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	if err != nil {
 		panic(err)
 	}
@@ -249,4 +248,14 @@ func TestSort(t *testing.T) {
 	}
 
 	t.Log(string(txBts))
+}
+
+func TestGetValidators(t *testing.T) {
+	initClient()
+	res, err := client.QueryValidators(10776032)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(res.Validators)
+	t.Log(len(res.Validators))
 }
