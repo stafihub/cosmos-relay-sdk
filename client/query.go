@@ -364,6 +364,19 @@ func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string,
 	return txs.Txs[0].TxHash, memoInTx, txs.Txs[0].Height, nil
 }
 
+func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		return c.clientCtx.Client.BlockResults(context.Background(), &height)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*ctypes.ResultBlockResults), nil
+}
+
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
 	if int64(era) < offset {
 		return 0, fmt.Errorf("era mustn't less than offset")

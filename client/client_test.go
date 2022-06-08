@@ -259,3 +259,12 @@ func TestGetValidators(t *testing.T) {
 	t.Log(res.Validators)
 	t.Log(len(res.Validators))
 }
+
+func TestGetBlockResults(t *testing.T) {
+	initClient()
+	result, err := client.GetBlockResults(10776032)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(types.StringifyEvents(result.BeginBlockEvents))
+}
