@@ -455,7 +455,7 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 				time.Sleep(waitTime)
 				continue
 			} else {
-				// business err case
+				// business err case or other err case not captured
 				for j := 0; j < len(c.rpcClientList); j++ {
 					c.ChangeEndpoint()
 
@@ -470,14 +470,22 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 						err = subErr
 						continue
 					}
+
+					result = subResult
+					err = subErr
+					// if ok when using this rpc, just return
 					return result, err
 				}
+
+				// if ok when using this rpc, just return
 				return result, err
 			}
 		}
+		// no err, just return
 		return result, err
 	}
-	panic(fmt.Sprintf("reach retry limit. err: %s", err))
+
+	return nil, fmt.Errorf("reach retry limit. err: %s", err)
 }
 
 func isConnectionError(err error) bool {
@@ -508,9 +516,16 @@ func isConnectionError(err error) bool {
 		return isConnectionError(newErr)
 	}
 
-	// json unmarshal err when rpc server shutting down
 	if err != nil {
+		// json unmarshal err when rpc server shutting down
 		if strings.Contains(err.Error(), "looking for beginning of value") {
+			return true
+		}
+		// server goroutine panic
+		if strings.Contains(err.Error(), "recovered") {
+			return true
+		}
+		if strings.Contains(err.Error(), "panic") {
 			return true
 		}
 	}
