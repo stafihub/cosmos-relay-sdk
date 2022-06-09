@@ -8,7 +8,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx/signing"
 	xAuthClient "github.com/cosmos/cosmos-sdk/x/auth/client"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
-	gogogrpc "github.com/gogo/protobuf/grpc"
 	"github.com/spf13/cobra"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 )
@@ -59,7 +58,7 @@ func (c *Client) ConstructAndSignTx(msgs ...types.Msg) ([]byte, error) {
 		WithSimulateAndExecute(true)
 
 	// auto cal gas with retry
-	adjusted, err := c.CalculateGas(clientCtx, txf, msgs...)
+	adjusted, err := c.CalculateGas(txf, msgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,12 +99,9 @@ func (c *Client) GetTxMemo(txBts []byte) (string, error) {
 	return memoInTx, nil
 }
 
-func (c *Client) CalculateGas(
-	clientCtx gogogrpc.ClientConn, txf clientTx.Factory, msgs ...types.Msg,
-) (uint64, error) {
-
+func (c *Client) CalculateGas(txf clientTx.Factory, msgs ...types.Msg) (uint64, error) {
 	cc, err := c.retry(func() (interface{}, error) {
-		_, adjustGas, err := clientTx.CalculateGas(clientCtx, txf, msgs...)
+		_, adjustGas, err := clientTx.CalculateGas(c.Ctx(), txf, msgs...)
 		return adjustGas, err
 	})
 	if err != nil {
