@@ -156,6 +156,31 @@ func (c *Client) QueryDelegationTotalRewards(delegatorAddr types.AccAddress, hei
 	return cc.(*xDistriTypes.QueryDelegationTotalRewardsResponse), nil
 }
 
+func (c *Client) QueryValidatorSlashes(validator types.ValAddress, startHeight, endHeight int64) (*xDistriTypes.QueryValidatorSlashesResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xDistriTypes.NewQueryClient(c.Ctx())
+		return queryClient.ValidatorSlashes(
+			context.Background(), &xDistriTypes.QueryValidatorSlashesRequest{
+				ValidatorAddress: validator.String(),
+				StartingHeight:   uint64(startHeight),
+				EndingHeight:     uint64(endHeight),
+				Pagination: &query.PageRequest{
+					Offset:     0,
+					Limit:      1000,
+					CountTotal: true,
+				},
+			},
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xDistriTypes.QueryValidatorSlashesResponse), nil
+}
+
 func (c *Client) QueryBlock(height int64) (*ctypes.ResultBlock, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
