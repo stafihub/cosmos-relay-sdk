@@ -97,6 +97,27 @@ func (c *Client) QueryDelegations(delegatorAddr types.AccAddress, height int64) 
 	return cc.(*xStakeTypes.QueryDelegatorDelegationsResponse), nil
 }
 
+func (c *Client) QueryReDelegations(delegatorAddr, src, dst string, height int64) (*xStakeTypes.QueryRedelegationsResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		client := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(client)
+		params := &xStakeTypes.QueryRedelegationsRequest{
+			DelegatorAddr:    delegatorAddr,
+			SrcValidatorAddr: src,
+			DstValidatorAddr: dst,
+			Pagination:       &query.PageRequest{},
+		}
+		return queryClient.Redelegations(context.Background(), params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryRedelegationsResponse), nil
+}
+
 func (c *Client) QueryValidators(height int64) (*xStakeTypes.QueryValidatorsResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
@@ -548,9 +569,11 @@ func isConnectionError(err error) bool {
 		}
 		// server goroutine panic
 		if strings.Contains(err.Error(), "recovered") {
+			fmt.Println(err)
 			return true
 		}
 		if strings.Contains(err.Error(), "panic") {
+			fmt.Println(err)
 			return true
 		}
 	}

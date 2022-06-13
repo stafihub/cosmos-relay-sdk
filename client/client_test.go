@@ -267,4 +267,17 @@ func TestGetBlockResults(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(types.StringifyEvents(result.BeginBlockEvents))
+
+	
+
+}
+
+
+func TestQueryRedelegations(t *testing.T){
+	initClient()
+	res,err:=client.QueryReDelegations("cosmos1wmk9ys49zxgmx77pqs7cjnpamnnxuspqu2r87y","","",0)
+	if err!=nil{
+		t.Fatal(err)
+	}
+	t.Log(res.Pagination.Total)
 }
