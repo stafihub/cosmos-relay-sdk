@@ -131,8 +131,9 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-
-	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators)
+	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleEraPoolUpdatedEvent)
+	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
+		snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators, memo)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
 			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
@@ -272,30 +273,36 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	var height int64
-	_, _, height, err = poolClient.GetLastTxIncludeWithdraw(poolAddressStr)
+	rewardCoins, height, err := poolClient.GetRewardToBeDelegated(poolAddressStr, snap.Era)
 	if err != nil {
-		// incase of the bond of first time
-		if err == hubClient.ErrNoTxIncludeWithdraw {
-			height, err = poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
+		if err == hubClient.ErrNoRewardNeedDelegate {
+			//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
+			total := types.NewInt(0)
+			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 			if err != nil {
-				h.log.Error("GetHeightByEra failed",
-					"pool address", poolAddressStr,
-					"err", snap.Era,
-					"err", err)
-				return err
+				if !strings.Contains(err.Error(), "unable to find delegations for address") {
+					h.log.Error("QueryDelegations failed",
+						"pool", poolAddressStr,
+						"err", err)
+					return err
+				}
+			} else {
+				for _, dele := range delegationsRes.GetDelegationResponses() {
+					total = total.Add(dele.Balance.Amount)
+				}
 			}
+			h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era)
+			return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 		} else {
-
-			h.log.Error("GetLastTxIncludeWithdraw failed",
+			h.log.Error("GetRewardToBeDelegated failed",
 				"pool address", poolAddressStr,
-				"era", snap.Era,
 				"err", err)
 			return err
 		}
 	}
-	height -= 1
-	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTx(poolClient, poolAddress, height)
+
+	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleActiveReportedEvent)
+	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTxWithReward(poolClient, poolAddress, height, rewardCoins, memo)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
 			//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
@@ -316,7 +323,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era, "height", height)
 			return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 		} else {
-			h.log.Error("GetClaimRewardUnsignedTx failed",
+			h.log.Error("GetDelegateRewardUnsignedTxWithReward failed",
 				"pool address", poolAddressStr,
 				"height", height,
 				"err", err)
@@ -436,7 +443,8 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	unSignedTx, outPuts, err := GetTransferUnsignedTx(poolClient, poolAddress, eventActiveReported.PoolUnbond, h.log)
+	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleActiveReportedEvent)
+	unSignedTx, outPuts, err := GetTransferUnsignedTxWithMemo(poolClient, poolAddress, eventActiveReported.PoolUnbond, memo, h.log)
 	if err != nil && err != ErrNoOutPuts {
 		h.log.Error("GetTransferUnsignedTx failed", "pool address", poolAddressStr, "err", err)
 		return err

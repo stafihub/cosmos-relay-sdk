@@ -332,11 +332,12 @@ func GetBondUnbondUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *
 	}
 }
 
-//if bond == unbond if no delegation before, return errNoMsgs, else gen withdraw multiSig unsigned tx
-//if bond > unbond gen delegate tx
-//if bond < unbond gen undelegate+withdraw tx
+//ensue every validator claim reward
+//if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
+//if bond > unbond: gen delegate tx
+//if bond < unbond: gen undelegate+withdraw tx
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
-	poolAddr types.AccAddress, height int64, targets []types.ValAddress) (unSignedTx []byte, unSignedType int, err error) {
+	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedType int, err error) {
 
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
@@ -360,9 +361,10 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			return
 		}
 
-		unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTx(
+		unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
 			poolAddr,
-			height)
+			height,
+			memo)
 		unSignedType = 0
 		return
 	case 1:
@@ -375,10 +377,11 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 		val := bond.Sub(bond, unbond)
 		val = val.Div(val, big.NewInt(int64(valAddrsLen)))
-		unSignedTx, err = client.GenMultiSigRawDelegateTx(
+		unSignedTx, err = client.GenMultiSigRawDelegateTxWithMemo(
 			poolAddr,
 			valAddrs,
-			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)))
+			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)),
+			memo)
 		unSignedType = 1
 		return
 	case -1:
@@ -503,11 +506,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 		}
 		done()
 
-		unSignedTx, err = client.GenMultiSigRawUnDelegateTxV3(
+		unSignedTx, err = client.GenMultiSigRawUnDelegateWithdrawTxWithMemo(
 			poolAddr,
 			choosedVals,
 			choosedAmount,
-			withdrawVals)
+			withdrawVals,
+			memo)
 		unSignedType = -1
 		return
 	default:
@@ -644,6 +648,35 @@ func GetDelegateRewardUnsignedTx(client *hubClient.Client, poolAddr types.AccAdd
 	return unSignedTx, &totalAmountRet, nil
 }
 
+//Notice: delegate/undelegate/withdraw operates will withdraw all reward
+//all delegations had withdraw all reward in eraUpdatedEvent handler
+//(0)if rewardAmount of  height == 0, hubClient.ErrNoMsgs
+//(1)else gen delegate tx
+func GetDelegateRewardUnsignedTxWithReward(client *hubClient.Client, poolAddr types.AccAddress, height int64,
+	rewards map[string]types.Coin, memo string) ([]byte, *types.Int, error) {
+
+	unSignedTx, err := client.GenMultiSigRawDeleRewardTxWithRewardsWithMemo(
+		poolAddr,
+		height,
+		rewards,
+		memo)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	decodedTx, err := client.GetTxConfig().TxJSONDecoder()(unSignedTx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("GetTxConfig().TxDecoder() failed: %s, unSignedTx: %s", err, string(unSignedTx))
+	}
+	totalAmountRet := types.NewInt(0)
+	for _, msg := range decodedTx.GetMsgs() {
+		if m, ok := msg.(*xStakingTypes.MsgDelegate); ok {
+			totalAmountRet = totalAmountRet.Add(m.Amount.Amount)
+		}
+	}
+	return unSignedTx, &totalAmountRet, nil
+}
+
 func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, receives []*stafiHubXLedgerTypes.Unbonding,
 	logger log.Logger) ([]byte, []xBankTypes.Output, error) {
 
@@ -674,6 +707,42 @@ func GetTransferUnsignedTx(client *hubClient.Client, poolAddr types.AccAddress, 
 	})
 
 	txBts, err := client.GenMultiSigRawBatchTransferTx(poolAddr, outPuts)
+	if err != nil {
+		return nil, nil, ErrNoOutPuts
+	}
+	return txBts, outPuts, nil
+}
+
+func GetTransferUnsignedTxWithMemo(client *hubClient.Client, poolAddr types.AccAddress, receives []*stafiHubXLedgerTypes.Unbonding, memo string,
+	logger log.Logger) ([]byte, []xBankTypes.Output, error) {
+
+	outPuts := make([]xBankTypes.Output, 0)
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	for _, receive := range receives {
+		addr, err := types.AccAddressFromBech32(receive.Recipient)
+		if err != nil {
+			logger.Error("GetTransferUnsignedTx AccAddressFromHex failed", "Account", receive.Recipient, "err", err)
+			continue
+		}
+		out := xBankTypes.Output{
+			Address: addr.String(),
+			Coins:   types.NewCoins(types.NewCoin(client.GetDenom(), receive.Amount)),
+		}
+		outPuts = append(outPuts, out)
+	}
+	done()
+
+	//len should not be 0
+	if len(outPuts) == 0 {
+		return nil, nil, ErrNoOutPuts
+	}
+
+	//sort outPuts for the same rawTx from different relayer
+	sort.SliceStable(outPuts, func(i, j int) bool {
+		return bytes.Compare([]byte(outPuts[i].Address), []byte(outPuts[j].Address)) < 0
+	})
+
+	txBts, err := client.GenMultiSigRawBatchTransferTxWithMemo(poolAddr, outPuts, memo)
 	if err != nil {
 		return nil, nil, ErrNoOutPuts
 	}
