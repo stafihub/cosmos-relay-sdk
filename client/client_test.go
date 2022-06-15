@@ -3,6 +3,7 @@ package client_test
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
 	"github.com/cosmos/cosmos-sdk/types"
+	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
@@ -26,7 +29,8 @@ func initClient() {
 
 	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	if err != nil {
 		panic(err)
 	}
@@ -87,11 +91,71 @@ func TestClient_GetEvent(t *testing.T) {
 
 func TestGetTxs(t *testing.T) {
 	initClient()
-	txs, err := client.GetCurrentBlockHeight()
-	if err != nil {
-		t.Fatal(err)
+
+	for page := 1; page < 40; page++ {
+		fmt.Println("page: ", page)
+		txs, err := client.GetTxs([]string{
+			fmt.Sprintf("message.sender='%s'", "cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj"),
+		}, page, 30, "desc")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tx := range txs.Txs {
+			fmt.Println("tx ------------->")
+			fmt.Println(tx.TxHash)
+			txValue := tx.Tx.Value
+			decodeTx, err := client.GetTxConfig().TxDecoder()(txValue)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, msg := range decodeTx.GetMsgs() {
+
+				switch types.MsgTypeURL(msg) {
+
+				case types.MsgTypeURL((*xStakingType.MsgDelegate)(nil)):
+					fallthrough
+				case types.MsgTypeURL((*xStakingType.MsgUndelegate)(nil)):
+					fallthrough
+				case types.MsgTypeURL((*xDistributionType.MsgWithdrawDelegatorReward)(nil)):
+					fmt.Println(decodeTx.GetMsgs())
+					fmt.Println(types.MsgTypeURL(msg))
+					events := types.StringifyEvents(tx.Events)
+
+					for _, event := range events {
+						switch event.Type {
+						case "delegate":
+
+						case "transfer":
+							// fmt.Println(event)
+							if len(event.Attributes) == 6 {
+
+								if event.Attributes[4].Value == "cosmos1jv65s3grqf6v6jl3dp4t6c9t9rk99cd88lyufl" &&
+									event.Attributes[3].Value == "cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj" {
+									fmt.Println("reward -> ", event.Attributes[5].Value)
+								}
+							}
+						}
+					}
+					poolAddr, _ := types.AccAddressFromBech32("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
+					balance, err := client.QueryBalance(poolAddr, "uatom", tx.Height+1)
+					if err != nil {
+						t.Fatal(err)
+					}
+					fmt.Println("balance: ", balance.Balance.Amount, "height: ", tx.Height)
+					if balance.Balance.Amount.GT(types.NewInt(1000000000)) {
+						t.Log(tx.TxHash, tx.Height+1)
+					}
+				}
+
+			}
+			txWithMemo, ok := decodeTx.(types.TxWithMemo)
+			if ok {
+				fmt.Println("txmemo: ", txWithMemo.GetMemo())
+			}
+
+		}
 	}
-	t.Log(txs)
 }
 
 func TestGetPubKey(t *testing.T) {

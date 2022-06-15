@@ -22,12 +22,6 @@ import (
 
 var ErrNoMsgs = errors.New("no tx msgs")
 
-var (
-	TxTypeHandleEraPoolUpdatedEvent = "handleEraPoolUpdatedEvent"
-	TxTypeHandleBondReportedEvent   = "handleBondReportedEvent"
-	TxTypeHandleActiveReportedEvent = "handleActiveReportedEvent"
-)
-
 //c.clientCtx.FromAddress must be multi sig address
 func (c *Client) GenMultiSigRawTransferTx(toAddr types.AccAddress, amount types.Coins) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
@@ -462,7 +456,7 @@ func (c *Client) GenMultiSigRawDeleRewardTxWithRewardsWithMemo(delAddr types.Acc
 	msgs := make([]types.Msg, 0)
 	for _, delegation := range delValsRes.GetDelegationResponses() {
 		valAddr := delegation.Delegation.ValidatorAddress
-		
+
 		//must filter zero value or tx will failure
 		if reward, exist := rewards[valAddr]; !exist || reward.IsZero() {
 			continue

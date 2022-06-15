@@ -13,7 +13,9 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/types"
 	errType "github.com/cosmos/cosmos-sdk/types/errors"
+	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
@@ -22,7 +24,20 @@ import (
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
-var ErrNoOutPuts = errors.New("outputs length is zero")
+var (
+	ErrNoOutPuts            = errors.New("outputs length is zero")
+	ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
+)
+
+var (
+	TxTypeHandleEraPoolUpdatedEvent = "handleEraPoolUpdatedEvent"
+	TxTypeHandleBondReportedEvent   = "handleBondReportedEvent"
+	TxTypeHandleActiveReportedEvent = "handleActiveReportedEvent"
+)
+
+func GetMemo(era uint32, txType string) string {
+	return fmt.Sprintf("%d:%s", era, txType)
+}
 
 func ShotIdToArray(shotId string) ([32]byte, error) {
 	shotIdBts, err := hex.DecodeString(shotId)
@@ -747,6 +762,79 @@ func GetTransferUnsignedTxWithMemo(client *hubClient.Client, poolAddr types.AccA
 		return nil, nil, ErrNoOutPuts
 	}
 	return txBts, outPuts, nil
+}
+
+func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
+	delAddress, err := types.AccAddressFromBech32(delegatorAddr)
+	if err != nil {
+		done()
+		return nil, 0, err
+	}
+	done()
+
+	txs, err := c.GetTxs(
+		[]string{
+			fmt.Sprintf("transfer.recipient='%s'", delegatorAddr),
+			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
+		}, 1, 4, "desc")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(txs.Txs) == 0 {
+		return nil, 0, ErrNoRewardNeedDelegate
+	}
+
+	valRewards := make(map[string]types.Coin)
+	retHeight := int64(0)
+	for _, tx := range txs.Txs {
+		txValue := tx.Tx.Value
+
+		decodeTx, err := c.GetTxConfig().TxDecoder()(txValue)
+		if err != nil {
+			return nil, 0, err
+		}
+		memoTx, ok := decodeTx.(types.TxWithMemo)
+		if !ok {
+			return nil, 0, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
+		}
+		memoInTx := memoTx.GetMemo()
+
+		switch memoInTx {
+		case GetMemo(era, TxTypeHandleEraPoolUpdatedEvent):
+			//return tx handleEraPoolUpdatedEvent height
+			retHeight = tx.Height - 1
+			fallthrough
+		case GetMemo(era-1, TxTypeHandleBondReportedEvent):
+			height := tx.Height - 1
+			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
+			if err != nil {
+				return nil, 0, err
+			}
+
+			for _, r := range totalReward.Rewards {
+				rewardCoin := types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
+				if rewardCoin.IsZero() {
+					continue
+				}
+				if _, exist := valRewards[r.ValidatorAddress]; !exist {
+					valRewards[r.ValidatorAddress] = rewardCoin
+				} else {
+					valRewards[r.ValidatorAddress] = valRewards[r.ValidatorAddress].Add(rewardCoin)
+				}
+
+			}
+		default:
+		}
+	}
+
+	if len(valRewards) == 0 {
+		return nil, 0, ErrNoRewardNeedDelegate
+	}
+
+	return valRewards, retHeight, nil
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,

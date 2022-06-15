@@ -25,7 +25,6 @@ const retryLimit = 600
 const waitTime = time.Second * 2
 
 var ErrNoTxIncludeWithdraw = fmt.Errorf("no tx include withdraw")
-var ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
 
 //no 0x prefix
 func (c *Client) QueryTxByHash(hashHexStr string) (*types.TxResponse, error) {
@@ -409,79 +408,6 @@ func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string,
 	memoInTx := memoTx.GetMemo()
 
 	return txs.Txs[0].TxHash, memoInTx, txs.Txs[0].Height, nil
-}
-
-func (c *Client) GetRewardToBeDelegated(delegatorAddr string, era uint32) (map[string]types.Coin, int64, error) {
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
-	delAddress, err := types.AccAddressFromBech32(delegatorAddr)
-	if err != nil {
-		done()
-		return nil, 0, err
-	}
-	done()
-
-	txs, err := c.GetTxs(
-		[]string{
-			fmt.Sprintf("transfer.recipient='%s'", delegatorAddr),
-			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
-		}, 1, 3, "desc")
-	if err != nil {
-		return nil, 0, err
-	}
-
-	if len(txs.Txs) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
-	}
-
-	valRewards := make(map[string]types.Coin)
-	retHeight := int64(0)
-	for _, tx := range txs.Txs {
-		txValue := tx.Tx.Value
-
-		decodeTx, err := c.GetTxConfig().TxDecoder()(txValue)
-		if err != nil {
-			return nil, 0, err
-		}
-		memoTx, ok := decodeTx.(types.TxWithMemo)
-		if !ok {
-			return nil, 0, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
-		}
-		memoInTx := memoTx.GetMemo()
-
-		switch memoInTx {
-		case fmt.Sprintf("%d:%s", era, TxTypeHandleEraPoolUpdatedEvent):
-			//return tx handleEraPoolUpdatedEvent height
-			retHeight = tx.Height - 1
-			fallthrough
-		case fmt.Sprintf("%d:%s", era-1, TxTypeHandleActiveReportedEvent):
-			height := tx.Height - 1
-			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
-			if err != nil {
-				return nil, 0, err
-			}
-
-			for _, r := range totalReward.Rewards {
-				rewardCoin := types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
-				if rewardCoin.IsZero() {
-					continue
-				}
-				if _, exist := valRewards[r.ValidatorAddress]; !exist {
-					valRewards[r.ValidatorAddress] = rewardCoin
-				} else {
-					valRewards[r.ValidatorAddress] = valRewards[r.ValidatorAddress].Add(rewardCoin)
-				}
-
-			}
-		default:
-		}
-	}
-
-	if len(valRewards) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
-	}
-
-	return valRewards, retHeight, nil
 }
 
 func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, error) {

@@ -131,7 +131,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleEraPoolUpdatedEvent)
+	memo := GetMemo(snap.Era, TxTypeHandleEraPoolUpdatedEvent)
 	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
 		snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators, memo)
 	if err != nil {
@@ -273,9 +273,9 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	rewardCoins, height, err := poolClient.GetRewardToBeDelegated(poolAddressStr, snap.Era)
+	rewardCoins, height, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
-		if err == hubClient.ErrNoRewardNeedDelegate {
+		if err == ErrNoRewardNeedDelegate {
 			//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
 			total := types.NewInt(0)
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
@@ -301,7 +301,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		}
 	}
 
-	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleActiveReportedEvent)
+	memo := GetMemo(snap.Era, TxTypeHandleBondReportedEvent)
 	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTxWithReward(poolClient, poolAddress, height, rewardCoins, memo)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
@@ -443,7 +443,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	done()
 	threshold := h.conn.poolThreshold[poolAddressStr]
 
-	memo := fmt.Sprintf("%d:%s", snap.Era, hubClient.TxTypeHandleActiveReportedEvent)
+	memo := GetMemo(snap.Era, TxTypeHandleActiveReportedEvent)
 	unSignedTx, outPuts, err := GetTransferUnsignedTxWithMemo(poolClient, poolAddress, eventActiveReported.PoolUnbond, memo, h.log)
 	if err != nil && err != ErrNoOutPuts {
 		h.log.Error("GetTransferUnsignedTx failed", "pool address", poolAddressStr, "err", err)
