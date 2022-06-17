@@ -183,7 +183,7 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 	switch split[0] {
 	case "1":
 		// check bond amount
-		if !coin.IsGTE(l.conn.leastBond) {
+		if coin.IsLT(l.conn.leastBond) {
 			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "bond amount", coin.String())
 			proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateAmountUnmatch
 			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)

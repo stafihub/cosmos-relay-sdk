@@ -112,26 +112,7 @@ func (c *Client) GenMultiSigRawDelegateTxWithMemo(delAddr types.AccAddress, valA
 }
 
 //generate unsigned unDelegate tx
-func (c *Client) GenMultiSigRawUnDelegateTx(delAddr types.AccAddress, valAddrs []types.ValAddress, amount types.Coin) ([]byte, error) {
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	if len(valAddrs) == 0 {
-		return nil, errors.New("no valAddrs")
-	}
-	if amount.IsZero() {
-		return nil, errors.New("amount is zero")
-	}
-	msgs := make([]types.Msg, 0)
-	for _, valAddr := range valAddrs {
-		msg := xStakingTypes.NewMsgUndelegate(delAddr, valAddr, amount)
-		msgs = append(msgs, msg)
-	}
-	return c.GenMultiSigRawTx(msgs...)
-}
-
-//generate unsigned unDelegate tx
-func (c *Client) GenMultiSigRawUnDelegateTxV2(delAddr types.AccAddress, valAddrs []types.ValAddress,
+func (c *Client) GenMultiSigRawUnDelegateTx(delAddr types.AccAddress, valAddrs []types.ValAddress,
 	amounts map[string]types.Int) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
@@ -148,39 +129,6 @@ func (c *Client) GenMultiSigRawUnDelegateTxV2(delAddr types.AccAddress, valAddrs
 		msg := xStakingTypes.NewMsgUndelegate(delAddr, valAddr, amount)
 		msgs = append(msgs, msg)
 	}
-	return c.GenMultiSigRawTx(msgs...)
-}
-
-//generate unsigned unDelegate+withdraw tx
-func (c *Client) GenMultiSigRawUnDelegateTxV3(delAddr types.AccAddress, valAddrs []types.ValAddress,
-	amounts map[string]types.Int, withdrawValAddress []types.ValAddress) ([]byte, error) {
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	if len(valAddrs) == 0 {
-		return nil, errors.New("no valAddrs")
-	}
-	msgs := make([]types.Msg, 0)
-
-	//gen undelegate
-	for _, valAddr := range valAddrs {
-		amount := types.NewCoin(c.GetDenom(), amounts[valAddr.String()])
-		if amount.IsZero() {
-			return nil, errors.New("amount is zero")
-		}
-		msg := xStakingTypes.NewMsgUndelegate(delAddr, valAddr, amount)
-		msgs = append(msgs, msg)
-	}
-
-	//gen withdraw
-	for _, valAddr := range withdrawValAddress {
-		msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
-		if err := msg.ValidateBasic(); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, msg)
-	}
-
 	return c.GenMultiSigRawTx(msgs...)
 }
 
@@ -227,7 +175,7 @@ func (c *Client) GenMultiSigRawReDelegateTx(delAddr types.AccAddress, valSrcAddr
 }
 
 //generate unsigned reDelegate tx
-func (c *Client) GenMultiSigRawReDelegateTxWithTarget(delAddr types.AccAddress, valSrcAddrs map[string]types.Coin, valDstAddr types.ValAddress) ([]byte, error) {
+func (c *Client) GenMultiSigRawReDelegateTxWithMultiSrc(delAddr types.AccAddress, valSrcAddrs map[string]types.Coin, valDstAddr types.ValAddress) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
@@ -244,55 +192,12 @@ func (c *Client) GenMultiSigRawReDelegateTxWithTarget(delAddr types.AccAddress, 
 }
 
 //generate unsigned withdraw delegate reward tx
-func (c *Client) GenMultiSigRawWithdrawDeleRewardTx(delAddr types.AccAddress, valAddr types.ValAddress) ([]byte, error) {
+func (c *Client) GenMultiSigRawWithdrawDelegatorRewardTx(delAddr types.AccAddress, valAddr types.ValAddress) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
 	msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
 	return c.GenMultiSigRawTx(msg)
-}
-
-//generate unsigned withdraw reward then delegate reward tx
-func (c *Client) GenMultiSigRawWithdrawRewardThenDeleTx(delAddr types.AccAddress, valAddr types.ValAddress, amount types.Coin) ([]byte, error) {
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, valAddr)
-	msg2 := xStakingTypes.NewMsgDelegate(delAddr, valAddr, amount)
-	return c.GenMultiSigRawTx(msg, msg2)
-}
-
-//generate unsigned withdraw all reward tx
-func (c *Client) GenMultiSigRawWithdrawAllRewardTx(delAddr types.AccAddress, height int64) ([]byte, error) {
-	delValsRes, err := c.QueryDelegations(delAddr, height)
-	if err != nil {
-		return nil, err
-	}
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	delegations := delValsRes.GetDelegationResponses()
-	// build multi-message transaction
-	msgs := make([]types.Msg, 0)
-	for _, delegation := range delegations {
-		valAddr := delegation.Delegation.ValidatorAddress
-		val, err := types.ValAddressFromBech32(valAddr)
-		if err != nil {
-			return nil, err
-		}
-		//skip zero amount
-		if delegation.Balance.Amount.IsZero() {
-			continue
-		}
-		//gen withdraw
-		msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, val)
-		if err := msg.ValidateBasic(); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, msg)
-
-	}
-	return c.GenMultiSigRawTx(msgs...)
 }
 
 //generate unsigned withdraw all reward tx
@@ -326,120 +231,6 @@ func (c *Client) GenMultiSigRawWithdrawAllRewardTxWithMemo(delAddr types.AccAddr
 
 	}
 	return c.GenMultiSigRawTxWithMemo(memo, msgs...)
-}
-
-//generate unsigned withdraw all reward then delegate reward tx
-func (c *Client) GenMultiSigRawWithdrawAllRewardThenDeleTx(delAddr types.AccAddress, height int64) ([]byte, error) {
-	delValsRes, err := c.QueryDelegations(delAddr, height)
-	if err != nil {
-		return nil, err
-	}
-	totalReward, err := c.QueryDelegationTotalRewards(delAddr, height)
-	if err != nil {
-		return nil, err
-	}
-
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	rewards := make(map[string]types.Coin)
-	for _, r := range totalReward.Rewards {
-		rewards[r.ValidatorAddress] = types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
-	}
-
-	delegations := delValsRes.GetDelegationResponses()
-	// build multi-message transaction
-	msgs := make([]types.Msg, 0)
-	for _, delegation := range delegations {
-		valAddr := delegation.Delegation.ValidatorAddress
-		//must filter zero value or tx will failure
-		if rewards[valAddr].IsZero() {
-			continue
-		}
-		//skip zero amount
-		if delegation.Balance.Amount.IsZero() {
-			continue
-		}
-
-		val, err := types.ValAddressFromBech32(valAddr)
-		if err != nil {
-			return nil, err
-		}
-		//gen withdraw
-		msg := xDistriTypes.NewMsgWithdrawDelegatorReward(delAddr, val)
-		if err := msg.ValidateBasic(); err != nil {
-			return nil, err
-		}
-		msgs = append(msgs, msg)
-
-		//gen delegate
-		msg2 := xStakingTypes.NewMsgDelegate(delAddr, val, rewards[valAddr])
-		if err := msg2.ValidateBasic(); err != nil {
-			return nil, err
-		}
-
-		msgs = append(msgs, msg2)
-	}
-
-	if len(msgs) == 0 {
-		return nil, ErrNoMsgs
-	}
-
-	return c.GenMultiSigRawTx(msgs...)
-}
-
-//generate unsigned delegate reward tx
-func (c *Client) GenMultiSigRawDeleRewardTx(delAddr types.AccAddress, height int64) ([]byte, error) {
-	delValsRes, err := c.QueryDelegations(delAddr, height)
-	if err != nil {
-		return nil, err
-	}
-	totalReward, err := c.QueryDelegationTotalRewards(delAddr, height)
-	if err != nil {
-		return nil, err
-	}
-
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	rewards := make(map[string]types.Coin)
-	for _, r := range totalReward.Rewards {
-		rewards[r.ValidatorAddress] = types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
-	}
-
-	delegations := delValsRes.GetDelegationResponses()
-	// build multi-message transaction
-	msgs := make([]types.Msg, 0)
-	for _, delegation := range delegations {
-		valAddr := delegation.Delegation.ValidatorAddress
-		//must filter zero value or tx will failure
-		if rewards[valAddr].IsZero() {
-			continue
-		}
-		//skip zero amount
-		if delegation.Balance.Amount.IsZero() {
-			continue
-		}
-
-		val, err := types.ValAddressFromBech32(valAddr)
-		if err != nil {
-			return nil, err
-		}
-
-		//gen delegate
-		msg2 := xStakingTypes.NewMsgDelegate(delAddr, val, rewards[valAddr])
-		if err := msg2.ValidateBasic(); err != nil {
-			return nil, err
-		}
-
-		msgs = append(msgs, msg2)
-	}
-
-	if len(msgs) == 0 {
-		return nil, ErrNoMsgs
-	}
-
-	return c.GenMultiSigRawTx(msgs...)
 }
 
 //generate unsigned delegate reward tx
@@ -522,36 +313,6 @@ func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byt
 	}
 	txBuilderRaw.SetMemo(memo)
 	return c.Ctx().TxConfig.TxJSONEncoder()(txBuilderRaw.GetTx())
-}
-
-//c.clientCtx.FromAddress  must be multi sig address
-func (c *Client) SignMultiSigRawTx(rawTx []byte, fromSubKey string) (signature []byte, err error) {
-	account, err := c.GetAccount()
-	if err != nil {
-		return nil, err
-	}
-	done := core.UseSdkConfigContext(c.GetAccountPrefix())
-	defer done()
-
-	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
-	txf = txf.WithSequence(account.GetSequence()).
-		WithAccountNumber(account.GetAccountNumber()).
-		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON) //multi sig need this mod
-
-	tx, err := c.Ctx().TxConfig.TxJSONDecoder()(rawTx)
-	if err != nil {
-		return nil, err
-	}
-	txBuilder, err := c.Ctx().TxConfig.WrapTxBuilder(tx)
-	if err != nil {
-		return nil, err
-	}
-	err = xAuthClient.SignTxWithSignerAddress(txf, c.Ctx(), c.Ctx().GetFromAddress(), fromSubKey, txBuilder, true, true)
-	if err != nil {
-		return nil, err
-	}
-	return marshalSignatureJSON(c.Ctx().TxConfig, txBuilder, true)
 }
 
 //c.clientCtx.FromAddress  must be multi sig address
