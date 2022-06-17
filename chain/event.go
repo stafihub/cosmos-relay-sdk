@@ -35,7 +35,7 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 		return err
 	}
 	for _, tx := range txs {
-		err := l.processTx(poolClient, tx, false, "", "")
+		err := l.processTx(poolClient, tx)
 		if err != nil {
 			return err
 		}
@@ -44,13 +44,13 @@ func (l *Listener) processBlockEvents(currentBlock int64) error {
 }
 
 // process tx or recovered tx
-func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse, isRecover bool, bonder, signer string) error {
+func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse) error {
 	if tx.Code != 0 || tx.Empty() {
 		return nil
 	}
 	for _, log := range tx.Logs {
 		for _, event := range log.Events {
-			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, isRecover, bonder, signer)
+			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, false, "", "")
 			if err != nil {
 				return err
 			}
@@ -59,6 +59,7 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse,
 	return nil
 }
 
+// when isRecover is true, bonder and signer must have value, bonder is a stafi address of user, signer is the signer of recover tx
 func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte, height int64, txHash string, event types.StringEvent, isRecover bool, bonder, signer string) error {
 	switch {
 	case event.Type == xBankTypes.EventTypeTransfer:
@@ -117,41 +118,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		memoInTx = memoTx.GetMemo()
 
 		if isRecover {
-			// check bond amount if it is a tx that will be recovered
-			if !coin.IsGTE(l.conn.leastBond) {
-				l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "event", event)
-				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-					Denom:  string(l.symbol),
-					Bonder: zeroStafiAddressStr,
-					Pool:   recipient,
-					Txhash: txHash,
-					Amount: coin.Amount,
-					State:  xLedgerTypes.LiquidityBondStateAmountUnmatch,
-				}
-				return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-			}
-			//check signer of recover tx == from of this tx
-			if from != signer {
-				l.log.Warn("received token with recover memo, but from!=signer", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "signer", signer)
-				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-					Denom:  string(l.symbol),
-					Bonder: zeroStafiAddressStr,
-					Pool:   recipient,
-					Txhash: txHash,
-					Amount: coin.Amount,
-					State:  xLedgerTypes.LiquidityBondStateBonderUnmatch,
-				}
-				return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-			}
-			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-				Denom:  string(l.symbol),
-				Bonder: bonder,
-				Pool:   recipient,
-				Txhash: txHash,
-				Amount: coin.Amount,
-				State:  xLedgerTypes.LiquidityBondStateVerifyOk,
-			}
-			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+			return l.dealRecorver(client, recipient, from, signer, bonder, txHash, coin)
 		} else {
 			return l.dealMemo(client, memoInTx, recipient, from, txHash, coin)
 		}
@@ -161,36 +128,55 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 	}
 }
 
+func (l Listener) dealRecorver(poolClient *hubClient.Client, recipient, from, signer, bonder, txHash string, coin types.Coin) error {
+	proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
+		Denom:  string(l.symbol),
+		Bonder: zeroStafiAddressStr,
+		Pool:   recipient,
+		Txhash: txHash,
+		Amount: coin.Amount,
+	}
+
+	switch {
+	// check bond amount if it is a tx which will be recovered
+	case coin.IsLT(l.conn.leastBond):
+		l.log.Warn("got transfer event but less than leastBond", "txHash", txHash)
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateAmountUnmatch
+	//check signer of recover tx is the from of this tx event
+	case from != signer:
+		l.log.Warn("received token with recover memo, but from!=signer", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "signer", signer)
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateBonderUnmatch
+	default:
+		proposalExeLiquidityBond.Bonder = bonder
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateVerifyOk
+	}
+
+	return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+}
+
 // memo case: empty, just return
 // memo case: 1:[address], submit exeLiquidityBond proposal to stafihub
-// memo case: 2:[address]:[txHash], recover for txHash (which is send from signer ?)
+// memo case: 2:[address]:[txHash], recover for txHash (which is send from signer)
 // memo case: unkonw format, just return
 func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, txHash string, coin types.Coin) error {
 
+	proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
+		Denom:  string(l.symbol),
+		Bonder: zeroStafiAddressStr,
+		Pool:   recipient,
+		Txhash: txHash,
+		Amount: coin.Amount,
+	}
 	if len(memo) == 0 {
 		l.log.Warn("received token but no memo", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String())
-		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-			Denom:  string(l.symbol),
-			Bonder: zeroStafiAddressStr,
-			Pool:   recipient,
-			Txhash: txHash,
-			Amount: coin.Amount,
-			State:  xLedgerTypes.LiquidityBondStateMemoUnmatch,
-		}
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
 		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 	}
 
 	split := strings.Split(memo, ":")
 	if len(split) < 2 {
 		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-			Denom:  string(l.symbol),
-			Bonder: zeroStafiAddressStr,
-			Pool:   recipient,
-			Txhash: txHash,
-			Amount: coin.Amount,
-			State:  xLedgerTypes.LiquidityBondStateMemoUnmatch,
-		}
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
 		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 	}
 
@@ -199,48 +185,33 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		// check bond amount
 		if !coin.IsGTE(l.conn.leastBond) {
 			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "bond amount", coin.String())
-			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-				Denom:  string(l.symbol),
-				Bonder: zeroStafiAddressStr,
-				Pool:   recipient,
-				Txhash: txHash,
-				Amount: coin.Amount,
-				State:  xLedgerTypes.LiquidityBondStateAmountUnmatch,
-			}
+			proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateAmountUnmatch
 			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 		}
+
+		// check user stafi address
 		done := core.UseSdkConfigContext("stafi")
 		bonder, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
 			done()
 			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-				Denom:  string(l.symbol),
-				Bonder: zeroStafiAddressStr,
-				Pool:   recipient,
-				Txhash: txHash,
-				Amount: coin.Amount,
-				State:  xLedgerTypes.LiquidityBondStateBonderUnmatch,
-			}
+			proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateBonderUnmatch
 			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 		}
 		bonderStr := bonder.String()
 		done()
 
-		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-			Denom:  string(l.symbol),
-			Bonder: bonderStr,
-			Pool:   recipient,
-			Txhash: txHash,
-			Amount: coin.Amount,
-			State:  xLedgerTypes.LiquidityBondStateVerifyOk,
-		}
+		// all is ok
+		proposalExeLiquidityBond.Bonder = bonderStr
+		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateVerifyOk
 		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 	case "2":
+		// check memo
 		if len(split) != 3 {
 			l.log.Warn("received token with recover memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
 			return nil
 		}
+		// check user stafi address
 		done := core.UseSdkConfigContext("stafi")
 		bonder, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
@@ -251,21 +222,39 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 		bonderStr := bonder.String()
 		done()
 
-		recoverTxHash := split[2]
-		txRes, err := poolClient.QueryTxByHash(recoverTxHash)
+		// checkout recovered tx
+		recoveredTxHash := split[2]
+		txRes, err := poolClient.QueryTxByHash(recoveredTxHash)
 		if err != nil || txRes.Code != 0 || txRes.Empty() {
 			l.log.Warn("received token with recover memo, but QueryTxByHash failed", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo, "err", err)
 			return nil
 		}
 
-		l.log.Info("received token with recover memo, will deal this txHash", "pool", recipient, "from", from, "txHash", txHash, "recoverTxhash", recoverTxHash, "memo", memo)
-		return l.processTx(poolClient, txRes, true, bonderStr, from)
+		// all is ok
+		l.log.Info("received token with recover memo, will deal this txHash", "pool", recipient, "from", from, "txHash", txHash, "recoveredTxhash", recoveredTxHash, "memo", memo)
+		return l.processRecoveredTx(poolClient, txRes, bonderStr, from)
 
 	default:
 		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
 		return nil
 	}
 
+}
+
+// bonder is a stafi address of user, signer is the signer of recover tx
+func (l *Listener) processRecoveredTx(poolClient *hubClient.Client, tx *types.TxResponse, bonder, signer string) error {
+	if tx.Code != 0 || tx.Empty() {
+		return nil
+	}
+	for _, log := range tx.Logs {
+		for _, event := range log.Events {
+			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, true, bonder, signer)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 //todo blocked until tx is dealed on stafichain
