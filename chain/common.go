@@ -30,13 +30,18 @@ var (
 )
 
 var (
-	TxTypeHandleEraPoolUpdatedEvent = "handleEraPoolUpdatedEvent"
-	TxTypeHandleBondReportedEvent   = "handleBondReportedEvent"
-	TxTypeHandleActiveReportedEvent = "handleActiveReportedEvent"
+	TxTypeHandleEraPoolUpdatedEvent    = "handleEraPoolUpdatedEvent"
+	TxTypeHandleBondReportedEvent      = "handleBondReportedEvent"
+	TxTypeHandleActiveReportedEvent    = "handleActiveReportedEvent"
+	TxTypeHandleRValidatorUpdatedEvent = "handleRValidatorUpdatedEvent"
 )
 
 func GetMemo(era uint32, txType string) string {
 	return fmt.Sprintf("%d:%s", era, txType)
+}
+
+func GetValidatorUpdatedMemo(cycleVersion, cycleNumber uint64) string {
+	return fmt.Sprintf("%d:%d:%s", cycleVersion, cycleNumber, TxTypeHandleRValidatorUpdatedEvent)
 }
 
 func ShotIdToArray(shotId string) ([32]byte, error) {

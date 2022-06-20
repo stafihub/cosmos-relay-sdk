@@ -166,12 +166,12 @@ func (c *Client) GenMultiSigRawUnDelegateWithdrawTxWithMemo(delAddr types.AccAdd
 }
 
 //generate unsigned reDelegate tx
-func (c *Client) GenMultiSigRawReDelegateTx(delAddr types.AccAddress, valSrcAddr, valDstAddr types.ValAddress, amount types.Coin) ([]byte, error) {
+func (c *Client) GenMultiSigRawReDelegateTxWithMemo(delAddr types.AccAddress, valSrcAddr, valDstAddr types.ValAddress, amount types.Coin, memo string) ([]byte, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
 	msg := xStakingTypes.NewMsgBeginRedelegate(delAddr, valSrcAddr, valDstAddr, amount)
-	return c.GenMultiSigRawTx(msg)
+	return c.GenMultiSigRawTxWithMemo(memo, msg)
 }
 
 //generate unsigned reDelegate tx

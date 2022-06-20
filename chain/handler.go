@@ -81,6 +81,8 @@ func (h *Handler) handleMessage(m *core.Message) error {
 		return h.handleActiveReportedEvent(m)
 	case core.ReasonRParamsChangedEvent:
 		return h.handleRParamsChangedEvent(m)
+	case core.ReasonRValidatorUpdatedEvent:
+		return h.HandleRValidatorUpdatedEvent(m)
 	default:
 		return fmt.Errorf("message reason unsupported reason: %s", m.Reason)
 	}
@@ -566,24 +568,6 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 		return fmt.Errorf("EventRParamsChanged cast failed, %+v", m)
 	}
 
-	if len(eventRParamsChanged.TargetValidators) == 0 {
-		return fmt.Errorf("targetValidators empty")
-	}
-	poolClient, err := h.conn.GetOnePoolClient()
-	if err != nil {
-		return err
-	}
-	vals := make([]types.ValAddress, 0)
-	for _, val := range eventRParamsChanged.TargetValidators {
-		done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
-		useVal, err := types.ValAddressFromBech32(val)
-		if err != nil {
-			done()
-			return err
-		}
-		done()
-		vals = append(vals, useVal)
-	}
 	leastBond, err := types.ParseCoinNormalized(eventRParamsChanged.LeastBond)
 	if err != nil {
 		return err
@@ -592,7 +576,6 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 	h.conn.RParams.eraSeconds = int64(eventRParamsChanged.EraSeconds)
 	h.conn.RParams.leastBond = leastBond
 	h.conn.RParams.offset = int64(eventRParamsChanged.Offset)
-	h.conn.RParams.targetValidators = vals
 	for _, c := range h.conn.poolClients {
 		err := c.SetGasPrice(eventRParamsChanged.GasPrice)
 		if err != nil {
@@ -600,4 +583,142 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 		}
 	}
 	return nil
+}
+
+//process validatorUpdated
+//1 gen redelegate  unsigned tx and cache it
+//2 sign it with subKey
+//3 send signature to stafi
+func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
+	eventRValidatorUpdated, ok := m.Content.(*core.EventRValidatorUpdated)
+	if !ok {
+		return fmt.Errorf("EventRValidatorUpdatedEvent cast failed, %+v", m)
+	}
+
+	poolClient, err := h.conn.GetPoolClient(eventRValidatorUpdated.PoolAddress)
+	if err != nil {
+		h.log.Error("processBondReportEvent failed",
+			"pool address", eventRValidatorUpdated.PoolAddress,
+			"error", err)
+		return err
+	}
+
+	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
+	poolAddress, err := types.AccAddressFromBech32(eventRValidatorUpdated.PoolAddress)
+	if err != nil {
+		done()
+		return err
+	}
+	poolAddressStr := poolAddress.String()
+
+	threshold := h.conn.poolThreshold[poolAddressStr]
+	memo := GetValidatorUpdatedMemo(eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
+
+	height := int64(0)
+
+	oldValidator, err := types.ValAddressFromBech32(eventRValidatorUpdated.OldAddress)
+	if err != nil {
+		h.log.Error("old validator cast to cosmos AccAddress failed",
+			"old val address", eventRValidatorUpdated.OldAddress,
+			"err", err)
+		done()
+		return err
+	}
+	newValidator, err := types.ValAddressFromBech32(eventRValidatorUpdated.NewAddress)
+	if err != nil {
+		h.log.Error("new validator cast to cosmos AccAddress failed",
+			"new val address", eventRValidatorUpdated.NewAddress,
+			"err", err)
+		done()
+		return err
+
+	}
+	done()
+
+	delRes, err := poolClient.QueryDelegation(poolAddress, oldValidator, height)
+	if err != nil {
+		h.log.Error("QueryDelegation failed",
+			"pool", poolAddressStr,
+			"old validator", eventRValidatorUpdated.OldAddress,
+			"err", err)
+		return err
+	}
+
+	amount := delRes.GetDelegationResponse().GetBalance()
+	unSignedTx, err := poolClient.GenMultiSigRawReDelegateTxWithMemo(poolAddress, oldValidator, newValidator, amount, memo)
+	if err != nil {
+		h.log.Error("GenMultiSigRawReDelegateTx failed",
+			"pool", poolAddressStr,
+			"old validator", eventRValidatorUpdated.OldAddress,
+			"new validator", eventRValidatorUpdated.NewAddress,
+			"err", err)
+		return err
+	}
+
+	wrapUnsignedTx := WrapUnsignedTx{
+		UnsignedTx: unSignedTx,
+		SnapshotId: "",
+		Era:        uint32(eventRValidatorUpdated.CycleVersion*10000 + eventRValidatorUpdated.CycleNumber),
+		Type:       stafiHubXLedgerTypes.TxTypeUnbond}
+
+	var txHash, txBts []byte
+	for i := 0; i < 5; i++ {
+		//use current seq
+		seq, err := poolClient.GetSequence(0, poolAddress)
+		if err != nil {
+			h.log.Error("GetSequence failed",
+				"pool address", poolAddressStr,
+				"err", err)
+			return err
+		}
+
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		if err != nil {
+			h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
+				"pool address", poolAddressStr,
+				"unsignedTx", string(unSignedTx),
+				"err", err)
+			return err
+		}
+
+		//cache unSignedTx
+		proposalId := GetValidatorUpdateProposalId(unSignedTx)
+		proposalIdHexStr := hex.EncodeToString(proposalId)
+
+		// send to stafihub
+		submitSignature := core.ParamSubmitSignature{
+			Denom:     eventRValidatorUpdated.Denom,
+			Era:       uint32(eventRValidatorUpdated.CycleVersion*10000 + eventRValidatorUpdated.CycleNumber),
+			Pool:      poolAddressStr,
+			TxType:    stafiHubXLedgerTypes.TxTypeUnbond,
+			PropId:    proposalIdHexStr,
+			Signature: hex.EncodeToString(sigBts),
+		}
+		err = h.sendSubmitSignatureMsg(&submitSignature)
+		if err != nil {
+			return err
+		}
+		signatures, err := h.mustGetSignatureFromStafiHub(&submitSignature, threshold)
+		if err != nil {
+			return err
+		}
+		txHash, txBts, err = poolClient.AssembleMultiSigTx(wrapUnsignedTx.UnsignedTx, signatures, threshold)
+		if err != nil {
+			h.log.Error("processActiveReportedEvent AssembleMultiSigTx failed",
+				"pool address ", poolAddressStr,
+				"unsignedTx", hex.EncodeToString(wrapUnsignedTx.UnsignedTx),
+				"signatures", bytesArrayToStr(signatures),
+				"threshold", threshold,
+				"err", err)
+			continue
+		}
+
+		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
+		if err == nil && res.Code != 0 {
+			continue
+		}
+		break
+	}
+
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
 }
