@@ -18,18 +18,18 @@ import (
 
 type Connection struct {
 	RParams
-	symbol        core.RSymbol
-	poolClients   map[string]*hubClient.Client // map[pool address]subClient
-	poolSubKey    map[string]string            // map[pool address]subkey
-	poolThreshold map[string]uint32            // map[pool address]threshold
-	log           log.Logger
+	symbol               core.RSymbol
+	poolClients          map[string]*hubClient.Client // map[pool address]subClient
+	poolSubKey           map[string]string            // map[pool address]subkey
+	poolThreshold        map[string]uint32            // map[pool address]threshold
+	log                  log.Logger
+	poolTargetValidators map[string][]types.ValAddress
 }
 
 type RParams struct {
-	eraSeconds       int64
-	leastBond        types.Coin
-	offset           int64
-	targetValidators []types.ValAddress
+	eraSeconds int64
+	leastBond  types.Coin
+	offset     int64
 }
 
 type WrapUnsignedTx struct {
@@ -43,20 +43,30 @@ type WrapUnsignedTx struct {
 }
 
 func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logger) (*Connection, error) {
-	if len(option.TargetValidators) == 0 {
+	if len(option.PoolTargetValidators) == 0 {
 		return nil, fmt.Errorf("targetValidators empty")
 	}
-	vals := make([]types.ValAddress, 0)
-	for _, val := range option.TargetValidators {
-		done := core.UseSdkConfigContext(option.AccountPrefix)
-		useVal, err := types.ValAddressFromBech32(val)
-		if err != nil {
+
+	valsMap := make(map[string][]types.ValAddress, 0)
+	done := core.UseSdkConfigContext(option.AccountPrefix)
+	for poolAddressStr, valsStr := range option.PoolTargetValidators {
+		if len(valsStr) == 0 {
 			done()
-			return nil, err
+			return nil, fmt.Errorf("targetValidators empty")
 		}
-		done()
-		vals = append(vals, useVal)
+		vals := make([]types.ValAddress, 0)
+		for _, val := range valsStr {
+			useVal, err := types.ValAddressFromBech32(val)
+			if err != nil {
+				done()
+				return nil, err
+			}
+			vals = append(vals, useVal)
+		}
+		valsMap[poolAddressStr] = vals
 	}
+	done()
+
 	leastBond, err := types.ParseCoinNormalized(option.LeastBond)
 	if err != nil {
 		return nil, err
@@ -97,16 +107,16 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 
 	c := Connection{
 		RParams: RParams{
-			eraSeconds:       int64(option.EraSeconds),
-			leastBond:        leastBond,
-			offset:           int64(option.Offset),
-			targetValidators: vals,
+			eraSeconds: int64(option.EraSeconds),
+			leastBond:  leastBond,
+			offset:     int64(option.Offset),
 		},
-		symbol:        core.RSymbol(cfg.Rsymbol),
-		poolClients:   poolClients,
-		poolSubKey:    poolSubkey,
-		poolThreshold: option.PoolAddressThreshold,
-		log:           log,
+		symbol:               core.RSymbol(cfg.Rsymbol),
+		poolClients:          poolClients,
+		poolSubKey:           poolSubkey,
+		poolThreshold:        option.PoolAddressThreshold,
+		poolTargetValidators: valsMap,
+		log:                  log,
 	}
 	return &c, nil
 }
@@ -120,11 +130,11 @@ func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
 	return nil, errors.New("no subClient")
 }
 
-func (c *Connection) GetPoolClient(poolAddr string) (*hubClient.Client, error) {
-	if sub, exist := c.poolClients[poolAddr]; exist {
+func (c *Connection) GetPoolClient(poolAddrStr string) (*hubClient.Client, error) {
+	if sub, exist := c.poolClients[poolAddrStr]; exist {
 		return sub, nil
 	}
-	return nil, errors.New("subClient of this pool not exist")
+	return nil, fmt.Errorf("subClient of this pool: %s not exist", poolAddrStr)
 }
 
 func (c *Connection) BlockStoreUseAddress() string {
@@ -135,4 +145,25 @@ func (c *Connection) BlockStoreUseAddress() string {
 
 	sort.Strings(poolSlice)
 	return poolSlice[0]
+}
+
+func (c *Connection) GetPoolTargetValidators(poolAddrStr string) ([]types.ValAddress, error) {
+	if vals, exist := c.poolTargetValidators[poolAddrStr]; exist {
+		return vals, nil
+	}
+	return nil, fmt.Errorf("target validators of this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) GetPoolThreshold(poolAddrStr string) (uint32, error) {
+	if value, exist := c.poolThreshold[poolAddrStr]; exist {
+		return value, nil
+	}
+	return 0, fmt.Errorf("threshold this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) GetPoolSubkeyName(poolAddrStr string) (string, error) {
+	if value, exist := c.poolSubKey[poolAddrStr]; exist {
+		return value, nil
+	}
+	return "", fmt.Errorf("subkey name this pool: %s not exist", poolAddrStr)
 }

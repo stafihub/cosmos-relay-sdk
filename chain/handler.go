@@ -123,7 +123,18 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	poolAddressStr := poolAddress.String()
 	done()
 
-	threshold := h.conn.poolThreshold[poolAddressStr]
+	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
+	if err != nil {
+		return err
+	}
+	targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
+	if err != nil {
+		return err
+	}
+	subKeyName, err := h.conn.GetPoolSubkeyName(poolAddressStr)
+	if err != nil {
+		return err
+	}
 
 	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
@@ -135,7 +146,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 	memo := GetMemo(snap.Era, TxTypeHandleEraPoolUpdatedEvent)
 	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
-		snap.Chunk.Unbond.BigInt(), poolAddress, height, h.conn.targetValidators, memo)
+		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators, memo)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
 			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
@@ -166,7 +177,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 			return err
 		}
 
-		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, subKeyName)
 		if err != nil {
 			h.log.Error("SignMultiSigRawTxWithSeq failed",
 				"pool address", poolAddressStr,
@@ -273,7 +284,14 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
-	threshold := h.conn.poolThreshold[poolAddressStr]
+	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
+	if err != nil {
+		return err
+	}
+	subKeyName, err := h.conn.GetPoolSubkeyName(poolAddressStr)
+	if err != nil {
+		return err
+	}
 
 	rewardCoins, height, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
@@ -352,7 +370,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			return err
 		}
 
-		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, subKeyName)
 		if err != nil {
 			h.log.Error("SignMultiSigRawTx failed",
 				"pool address", poolAddressStr,
@@ -443,7 +461,14 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 	}
 	poolAddressStr := poolAddress.String()
 	done()
-	threshold := h.conn.poolThreshold[poolAddressStr]
+	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
+	if err != nil {
+		return err
+	}
+	subKeyName, err := h.conn.GetPoolSubkeyName(poolAddressStr)
+	if err != nil {
+		return err
+	}
 
 	memo := GetMemo(snap.Era, TxTypeHandleActiveReportedEvent)
 	unSignedTx, outPuts, err := GetTransferUnsignedTxWithMemo(poolClient, poolAddress, eventActiveReported.PoolUnbond, memo, h.log)
@@ -475,7 +500,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 			return err
 		}
 
-		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, subKeyName)
 		if err != nil {
 			h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
 				"pool address", poolAddressStr,
@@ -610,10 +635,7 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 		return err
 	}
 	poolAddressStr := poolAddress.String()
-
-	threshold := h.conn.poolThreshold[poolAddressStr]
 	memo := GetValidatorUpdatedMemo(eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
-
 	height := int64(0)
 
 	oldValidator, err := types.ValAddressFromBech32(eventRValidatorUpdated.OldAddress)
@@ -634,6 +656,15 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 
 	}
 	done()
+
+	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
+	if err != nil {
+		return err
+	}
+	subKeyName, err := h.conn.GetPoolSubkeyName(poolAddressStr)
+	if err != nil {
+		return err
+	}
 
 	delRes, err := poolClient.QueryDelegation(poolAddress, oldValidator, height)
 	if err != nil {
@@ -672,7 +703,7 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 			return err
 		}
 
-		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, h.conn.poolSubKey[poolAddressStr])
+		sigBts, err := poolClient.SignMultiSigRawTxWithSeq(seq, unSignedTx, subKeyName)
 		if err != nil {
 			h.log.Error("processActiveReportedEvent SignMultiSigRawTx failed",
 				"pool address", poolAddressStr,

@@ -7,12 +7,12 @@ type ConfigOption struct {
 	PoolNameSubKey map[string]string `json:"pools"`
 
 	// get from stafihub rparams
-	GasPrice         string   `json:"gasPrice"`
-	EraSeconds       uint32   `json:"eraSeconds"`
-	LeastBond        string   `json:"leastBond"`
-	Offset           int32    `json:"offset"`
-	TargetValidators []string `json:"targetValidators"`
-	AccountPrefix    string   `json:"accountPrefix"`
+	GasPrice             string              `json:"gasPrice"`
+	EraSeconds           uint32              `json:"eraSeconds"`
+	LeastBond            string              `json:"leastBond"`
+	Offset               int32               `json:"offset"`
+	PoolTargetValidators map[string][]string `json:"targetValidators"`
+	AccountPrefix        string              `json:"accountPrefix"`
 
 	// get from stafihub pooldetail
 	PoolAddressThreshold map[string]uint32 `json:"poolThreshold"`
