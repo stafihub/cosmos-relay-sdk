@@ -135,15 +135,29 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	if err != nil {
 		return err
 	}
-
+	// height = max(latest redelegate height, era height)?
+	// the redelegate tx height maybe bigger than era height if rValidatorUpdatedEvent is dealed after a long time
 	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
 		h.log.Error("GetHeightByEra failed",
 			"pool address", poolAddressStr,
-			"err", snap.Era,
+			"era", snap.Era,
 			"err", err)
 		return err
 	}
+
+	_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
+	if err != nil {
+		h.log.Error("GetLatestReDelegateTx failed",
+			"pool address", poolAddressStr,
+			"era", snap.Era,
+			"err", err)
+		return err
+	}
+	if redelegateTxHeight > height {
+		height = redelegateTxHeight
+	}
+
 	memo := GetMemo(snap.Era, TxTypeHandleEraPoolUpdatedEvent)
 	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
 		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators, memo)
@@ -611,11 +625,13 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 }
 
 //process validatorUpdated
-//1 gen redelegate  unsigned tx and cache it
+//1 gen redelegate unsigned tx and cache it
 //2 sign it with subKey
 //3 send signature to stafi
+//4 wait until signature enough and send tx to cosmoshub
+//5 rvalidator update report to stafihub
 func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
-	eventRValidatorUpdated, ok := m.Content.(*core.EventRValidatorUpdated)
+	eventRValidatorUpdated, ok := m.Content.(core.EventRValidatorUpdated)
 	if !ok {
 		return fmt.Errorf("EventRValidatorUpdatedEvent cast failed, %+v", m)
 	}
@@ -635,8 +651,7 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 		return err
 	}
 	poolAddressStr := poolAddress.String()
-	memo := GetValidatorUpdatedMemo(eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
-	height := int64(0)
+	memo := GetValidatorUpdatedMemo(eventRValidatorUpdated.Era, eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
 
 	oldValidator, err := types.ValAddressFromBech32(eventRValidatorUpdated.OldAddress)
 	if err != nil {
@@ -653,10 +668,16 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 			"err", err)
 		done()
 		return err
-
 	}
 	done()
 
+	h.conn.ReplacePoolTargetValidator(poolAddressStr, oldValidator, newValidator)
+
+	// got target height
+	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
+	if err != nil {
+		return err
+	}
 	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
 	if err != nil {
 		return err
@@ -674,8 +695,8 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
-
 	amount := delRes.GetDelegationResponse().GetBalance()
+
 	unSignedTx, err := poolClient.GenMultiSigRawReDelegateTxWithMemo(poolAddress, oldValidator, newValidator, amount, memo)
 	if err != nil {
 		h.log.Error("GenMultiSigRawReDelegateTx failed",
@@ -687,10 +708,13 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 	}
 
 	wrapUnsignedTx := WrapUnsignedTx{
-		UnsignedTx: unSignedTx,
-		SnapshotId: "",
-		Era:        uint32(eventRValidatorUpdated.CycleVersion*10000 + eventRValidatorUpdated.CycleNumber),
-		Type:       stafiHubXLedgerTypes.TxTypeUnbond}
+		UnsignedTx:     unSignedTx,
+		SnapshotId:     "",
+		Era:            eventRValidatorUpdated.Era,
+		Type:           stafiHubXLedgerTypes.TxTypeUnbond,
+		PoolAddressStr: poolAddressStr,
+		CycleVersion:   eventRValidatorUpdated.CycleVersion,
+		CycleNumber:    eventRValidatorUpdated.CycleNumber}
 
 	var txHash, txBts []byte
 	for i := 0; i < 5; i++ {
@@ -713,13 +737,13 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 		}
 
 		//cache unSignedTx
-		proposalId := GetValidatorUpdateProposalId(unSignedTx)
+		proposalId := GetValidatorUpdateProposalId(unSignedTx, uint8(i))
 		proposalIdHexStr := hex.EncodeToString(proposalId)
 
 		// send to stafihub
 		submitSignature := core.ParamSubmitSignature{
 			Denom:     eventRValidatorUpdated.Denom,
-			Era:       uint32(eventRValidatorUpdated.CycleVersion*10000 + eventRValidatorUpdated.CycleNumber),
+			Era:       eventRValidatorUpdated.Era,
 			Pool:      poolAddressStr,
 			TxType:    stafiHubXLedgerTypes.TxTypeUnbond,
 			PropId:    proposalIdHexStr,
@@ -746,6 +770,10 @@ func (h *Handler) HandleRValidatorUpdatedEvent(m *core.Message) error {
 
 		res, err := poolClient.QueryTxByHash(hex.EncodeToString(txHash))
 		if err == nil && res.Code != 0 {
+			h.log.Warn("processActiveReportedEvent queryTxHash failed, will retry",
+				"txHash", hex.EncodeToString(txHash),
+				"res.Code", res.Code,
+				"res.Rawlog", res.RawLog)
 			continue
 		}
 		break

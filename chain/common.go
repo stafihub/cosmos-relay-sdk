@@ -40,8 +40,8 @@ func GetMemo(era uint32, txType string) string {
 	return fmt.Sprintf("%d:%s", era, txType)
 }
 
-func GetValidatorUpdatedMemo(cycleVersion, cycleNumber uint64) string {
-	return fmt.Sprintf("%d:%d:%s", cycleVersion, cycleNumber, TxTypeHandleRValidatorUpdatedEvent)
+func GetValidatorUpdatedMemo(era uint32, cycleVersion, cycleNumber uint64) string {
+	return fmt.Sprintf("%d:%d:%d:%s", era, cycleVersion, cycleNumber, TxTypeHandleRValidatorUpdatedEvent)
 }
 
 func ShotIdToArray(shotId string) ([32]byte, error) {
@@ -109,9 +109,9 @@ func GetTransferProposalId(unSignTxHash [32]byte, index uint8) []byte {
 	return proposalId
 }
 
-func GetValidatorUpdateProposalId(content []byte) []byte {
+func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 	hash := utils.BlakeTwo256(content)
-	return hash[:]
+	return append(hash[:], index)
 }
 
 //ensue every validator claim reward
@@ -366,7 +366,10 @@ func GetTransferUnsignedTxWithMemo(client *hubClient.Client, poolAddr types.AccA
 	return txBts, outPuts, nil
 }
 
-// get reward info of pre txs(tx in eraUpdatedEvent of this era and tx in bondReportedEvent of era-1)
+// get reward info of pre txs(tx in eraUpdatedEvent of this era and tx in bondReportedEvent/rValidatorUpdatedEvent of era-1)
+// tx in bondReportedEvent of era-1 should use the old validator
+// tx in rValidatorUpdatedEvent of era -1 should replace old to new validator
+// tx in eraUpdatedEvent of this era should already use the new validator
 func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
@@ -381,7 +384,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 		[]string{
 			fmt.Sprintf("transfer.recipient='%s'", delegatorAddr),
 			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
-		}, 1, 4, "desc")
+		}, 1, 10, "desc")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -392,7 +395,8 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 
 	valRewards := make(map[string]types.Coin)
 	retHeight := int64(0)
-	for _, tx := range txs.Txs {
+	for i := len(txs.Txs) - 1; i >= 0; i-- {
+		tx := txs.Txs[i]
 		txValue := tx.Tx.Value
 
 		decodeTx, err := c.GetTxConfig().TxDecoder()(txValue)
@@ -405,12 +409,12 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 		}
 		memoInTx := memoTx.GetMemo()
 
-		switch memoInTx {
-		case GetMemo(era, TxTypeHandleEraPoolUpdatedEvent):
+		switch {
+		case memoInTx == GetMemo(era, TxTypeHandleEraPoolUpdatedEvent):
 			//return tx handleEraPoolUpdatedEvent height
 			retHeight = tx.Height - 1
 			fallthrough
-		case GetMemo(era-1, TxTypeHandleBondReportedEvent):
+		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
 			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 			if err != nil {
@@ -422,6 +426,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 				if rewardCoin.IsZero() {
 					continue
 				}
+
 				if _, exist := valRewards[r.ValidatorAddress]; !exist {
 					valRewards[r.ValidatorAddress] = rewardCoin
 				} else {
@@ -429,6 +434,45 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 				}
 
 			}
+		case strings.Contains(memoInTx, TxTypeHandleRValidatorUpdatedEvent):
+			fragments := strings.Split(memoInTx, ":")
+			if len(fragments) != 4 {
+				continue
+			}
+			// only collect the old validator's reward info which is redelegated in era-1
+			if fragments[0] == fmt.Sprintf("%d", era-1) {
+				msg, ok := decodeTx.GetMsgs()[0].(*xStakingTypes.MsgBeginRedelegate)
+				if !ok {
+					continue
+				}
+				height := tx.Height - 1
+				totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
+				if err != nil {
+					return nil, 0, err
+				}
+				willRemoveVal := msg.ValidatorSrcAddress
+				willUseVal := msg.ValidatorDstAddress
+
+				for _, r := range totalReward.Rewards {
+					if willRemoveVal == r.ValidatorAddress {
+						rewardCoin := types.NewCoin(c.GetDenom(), r.Reward.AmountOf(c.GetDenom()).TruncateInt())
+						if rewardCoin.IsZero() {
+							continue
+						}
+						if reward, exist := valRewards[willRemoveVal]; exist {
+							valRewards[willUseVal] = reward
+							// put reward on new validator and delete old validator
+							delete(valRewards, willRemoveVal)
+
+							valRewards[willUseVal] = valRewards[willUseVal].Add(rewardCoin)
+						} else {
+							valRewards[willUseVal] = rewardCoin
+						}
+						break
+					}
+				}
+			}
+
 		default:
 		}
 	}
@@ -438,6 +482,24 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 	}
 
 	return valRewards, retHeight, nil
+}
+
+func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.TxResponse, int64, error) {
+
+	txs, err := c.GetTxs(
+		[]string{
+			fmt.Sprintf("message.sender='%s'", delegatorAddr),
+			fmt.Sprintf("message.action='%s'", "/cosmos.staking.v1beta1.MsgBeginRedelegate"),
+		}, 1, 1, "desc")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(txs.Txs) == 0 {
+		return nil, 0, nil
+	}
+
+	return txs.Txs[0], txs.Txs[0].Height, nil
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
@@ -485,9 +547,9 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			"txHash", txHashHexStr)
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
-		case stafiHubXLedgerTypes.TxTypeBond: //bond or unbond
+		case stafiHubXLedgerTypes.TxTypeBond: //bond/unbond/claim
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
-		case stafiHubXLedgerTypes.TxTypeClaim: //claim and redelegate
+		case stafiHubXLedgerTypes.TxTypeClaim: //delegate reward
 			total := types.NewInt(0)
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
 			if err != nil {
@@ -505,6 +567,8 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
 		case stafiHubXLedgerTypes.TxTypeTransfer: //transfer unbond token to user
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
+		case stafiHubXLedgerTypes.TxTypeUnbond: // redelegate
+			return h.sendRValidatorUpdateReportReportMsg(wrappedUnSignedTx.PoolAddressStr, wrappedUnSignedTx.CycleVersion, wrappedUnSignedTx.CycleNumber)
 		default:
 			h.log.Warn("checkAndSend failed,unknown unsigned tx type",
 				"pool", poolAddressStr,
@@ -554,6 +618,22 @@ func (h *Handler) sendTransferReportMsg(shotId string) error {
 		Content: core.ProposalTransferReport{
 			Denom:  string(h.conn.symbol),
 			ShotId: shotId,
+		},
+	}
+
+	return h.router.Send(&m)
+}
+
+func (h *Handler) sendRValidatorUpdateReportReportMsg(poolAddressStr string, cycleVersion, cycleNumber uint64) error {
+	m := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonRValidatorUpdateReport,
+		Content: core.ProposalRValidatorUpdateReport{
+			Denom:        string(h.conn.symbol),
+			PoolAddress:  poolAddressStr,
+			CycleVersion: cycleVersion,
+			CycleNumber:  cycleNumber,
 		},
 	}
 

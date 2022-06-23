@@ -1,11 +1,13 @@
 package chain
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"sort"
+	"sync"
 
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/cosmos/cosmos-sdk/types"
@@ -24,6 +26,7 @@ type Connection struct {
 	poolThreshold        map[string]uint32            // map[pool address]threshold
 	log                  log.Logger
 	poolTargetValidators map[string][]types.ValAddress
+	poolTargetMutex      sync.RWMutex
 }
 
 type RParams struct {
@@ -33,13 +36,16 @@ type RParams struct {
 }
 
 type WrapUnsignedTx struct {
-	UnsignedTx []byte
-	Key        string
-	SnapshotId string
-	Era        uint32
-	Bond       *big.Int
-	Unbond     *big.Int
-	Type       stafiHubXLedgerTypes.OriginalTxType
+	UnsignedTx     []byte
+	Key            string
+	SnapshotId     string
+	Era            uint32
+	Bond           *big.Int
+	Unbond         *big.Int
+	Type           stafiHubXLedgerTypes.OriginalTxType
+	PoolAddressStr string
+	CycleVersion   uint64
+	CycleNumber    uint64
 }
 
 func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logger) (*Connection, error) {
@@ -148,10 +154,35 @@ func (c *Connection) BlockStoreUseAddress() string {
 }
 
 func (c *Connection) GetPoolTargetValidators(poolAddrStr string) ([]types.ValAddress, error) {
+	c.poolTargetMutex.RLock()
+	defer c.poolTargetMutex.RUnlock()
+
 	if vals, exist := c.poolTargetValidators[poolAddrStr]; exist {
 		return vals, nil
 	}
 	return nil, fmt.Errorf("target validators of this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) SetPoolTargetValidators(poolAddrStr string, vals []types.ValAddress) {
+	c.poolTargetMutex.Lock()
+	defer c.poolTargetMutex.Unlock()
+
+	c.poolTargetValidators[poolAddrStr] = vals
+}
+
+func (c *Connection) ReplacePoolTargetValidator(poolAddrStr string, oldVal, newVal types.ValAddress) {
+	c.poolTargetMutex.Lock()
+	defer c.poolTargetMutex.Unlock()
+
+	newVals := make([]types.ValAddress, 0)
+	for _, val := range c.poolTargetValidators[poolAddrStr] {
+		if !bytes.Equal(val, oldVal) {
+			newVals = append(newVals, val)
+		}
+	}
+	newVals = append(newVals, newVal)
+
+	c.poolTargetValidators[poolAddrStr] = newVals
 }
 
 func (c *Connection) GetPoolThreshold(poolAddrStr string) (uint32, error) {

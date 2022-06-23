@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stafihub/cosmos-relay-sdk/chain"
+	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/config"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
@@ -74,4 +75,34 @@ func TestChainInitialize(t *testing.T) {
 
 	c.SetRouter(router)
 	c.Start()
+}
+
+func TestGetRewardToBeDelegated(t *testing.T) {
+	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
+	if err != nil {
+		panic(err)
+	}
+	for i := 5519471; i > 0; i-- {
+		t.Log("---------------", i)
+		rewardMap, height, err := chain.GetRewardToBeDelegated(client, "cosmos13jd2vn5wt8h6slj0gcv05lasgpkwpm26n04y75", uint32(i))
+		if err != nil {
+			t.Log(err)
+		} else {
+			t.Log(rewardMap, height)
+		}
+	}
+}
+
+func TestGetLatestRedelegateTx(t *testing.T) {
+	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
+	if err != nil {
+		panic(err)
+	}
+	tx, height, err := chain.GetLatestReDelegateTx(client, "cosmos13jd2vn5wt8h6slj0gcv05lasgpkwpm26n04y75")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(height, tx.TxHash)
 }
