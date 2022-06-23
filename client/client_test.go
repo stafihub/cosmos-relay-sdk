@@ -30,7 +30,8 @@ func initClient() {
 	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +39,7 @@ func initClient() {
 
 func TestClient_GetHeightByEra(t *testing.T) {
 	initClient()
-	height, err := client.GetHeightByEra(18665, 88200, 0)
+	height, err := client.GetHeightByEra(2759995, 600, 0)
 	assert.NoError(t, err)
 	t.Log(height)
 }

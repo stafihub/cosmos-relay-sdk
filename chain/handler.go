@@ -662,6 +662,7 @@ func (h *Handler) handleRValidatorAddedEvent(m *core.Message) error {
 //4 wait until signature enough and send tx to cosmoshub
 //5 rvalidator update report to stafihub
 func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
+	h.log.Info("handleRValidatorUpdatedEvent", "m", m)
 	eventRValidatorUpdated, ok := m.Content.(core.EventRValidatorUpdated)
 	if !ok {
 		return fmt.Errorf("EventRValidatorUpdatedEvent cast failed, %+v", m)
