@@ -170,6 +170,13 @@ func (c *Connection) SetPoolTargetValidators(poolAddrStr string, vals []types.Va
 	c.poolTargetValidators[poolAddrStr] = vals
 }
 
+func (c *Connection) AddPoolTargetValidator(poolAddrStr string, newVal types.ValAddress) {
+	c.poolTargetMutex.Lock()
+	defer c.poolTargetMutex.Unlock()
+
+	c.poolTargetValidators[poolAddrStr] = append(c.poolTargetValidators[poolAddrStr], newVal)
+}
+
 func (c *Connection) ReplacePoolTargetValidator(poolAddrStr string, oldVal, newVal types.ValAddress) {
 	c.poolTargetMutex.Lock()
 	defer c.poolTargetMutex.Unlock()
