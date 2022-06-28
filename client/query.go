@@ -16,6 +16,7 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	xSlashingTypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
@@ -200,6 +201,70 @@ func (c *Client) QueryValidatorSlashes(validator types.ValAddress, startHeight, 
 		return nil, err
 	}
 	return cc.(*xDistriTypes.QueryValidatorSlashesResponse), nil
+}
+
+func (c *Client) QueryValidator(validator string, height int64) (*xStakeTypes.QueryValidatorResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		return queryClient.Validator(
+			context.Background(),
+			&xStakeTypes.QueryValidatorRequest{
+				ValidatorAddr: validator,
+			},
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryValidatorResponse), nil
+}
+
+func (c *Client) QueryAllRedelegations(delegator string, height int64) (*xStakeTypes.QueryRedelegationsResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		return queryClient.Redelegations(
+			context.Background(),
+			&xStakeTypes.QueryRedelegationsRequest{
+				DelegatorAddr:    delegator,
+				SrcValidatorAddr: "",
+				DstValidatorAddr: "",
+				Pagination: &query.PageRequest{
+					Offset:     0,
+					Limit:      1000,
+					CountTotal: false,
+				},
+			},
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryRedelegationsResponse), nil
+}
+
+func (c *Client) QuerySigningInfo(consAddr string, height int64) (*xSlashingTypes.SigningInfo, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xSlashingTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		return queryClient.SigningInfo(
+			context.Background(),
+			&xSlashingTypes.QuerySigningInfoRequest{
+				ConsAddress: consAddr,
+			},
+		)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xSlashingTypes.SigningInfo), nil
 }
 
 func (c *Client) QueryBlock(height int64) (*ctypes.ResultBlock, error) {
