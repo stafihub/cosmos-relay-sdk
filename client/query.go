@@ -248,7 +248,7 @@ func (c *Client) QueryAllRedelegations(delegator string, height int64) (*xStakeT
 	return cc.(*xStakeTypes.QueryRedelegationsResponse), nil
 }
 
-func (c *Client) QuerySigningInfo(consAddr string, height int64) (*xSlashingTypes.SigningInfo, error) {
+func (c *Client) QuerySigningInfo(consAddr string, height int64) (*xSlashingTypes.QuerySigningInfoResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
@@ -264,7 +264,7 @@ func (c *Client) QuerySigningInfo(consAddr string, height int64) (*xSlashingType
 	if err != nil {
 		return nil, err
 	}
-	return cc.(*xSlashingTypes.SigningInfo), nil
+	return cc.(*xSlashingTypes.QuerySigningInfoResponse), nil
 }
 
 func (c *Client) QueryBlock(height int64) (*ctypes.ResultBlock, error) {

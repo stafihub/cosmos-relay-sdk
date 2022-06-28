@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
+	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
@@ -31,7 +32,7 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
+	client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	if err != nil {
 		panic(err)
 	}
@@ -42,6 +43,35 @@ func TestClient_GetHeightByEra(t *testing.T) {
 	height, err := client.GetHeightByEra(2759995, 600, 0)
 	assert.NoError(t, err)
 	t.Log(height)
+}
+
+func TestQuerySignInfo(t *testing.T) {
+	initClient()
+
+	validator, err := client.QueryValidator("stafivaloper1yadulh67pu0y8xqy9kkeajjjhppfm384kczwsv", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	consPubkeyJson, err := client.Ctx().Codec.MarshalJSON(validator.Validator.ConsensusPubkey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(consPubkeyJson))
+	var pk cryptotypes.PubKey
+
+	if err := client.Ctx().Codec.UnmarshalInterfaceJSON(consPubkeyJson, &pk); err != nil {
+		t.Fatal(err)
+	}
+
+	consAddr := types.ConsAddress(pk.Address())
+
+	signingInfo, err := client.QuerySigningInfo(consAddr.String(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(signingInfo)
+
 }
 
 func TestClient_QueryTxByHash(t *testing.T) {

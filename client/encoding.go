@@ -4,6 +4,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/codec/types"
+	cryptoCodec "github.com/cosmos/cosmos-sdk/crypto/codec"
 	"github.com/cosmos/cosmos-sdk/std"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
@@ -14,6 +15,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/distribution"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/params"
+	"github.com/cosmos/cosmos-sdk/x/slashing"
 	"github.com/cosmos/cosmos-sdk/x/staking"
 
 	interChain "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
@@ -44,6 +46,7 @@ func MakeEncodingConfig() EncodingConfig {
 		distribution.AppModuleBasic{},
 		params.AppModuleBasic{},
 		crisis.AppModuleBasic{},
+		slashing.AppModuleBasic{},
 
 		ibcTransfer.AppModuleBasic{},
 		ibcCore.AppModuleBasic{},
@@ -51,6 +54,8 @@ func MakeEncodingConfig() EncodingConfig {
 	)
 	moduleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	moduleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)
+
+	cryptoCodec.RegisterInterfaces(encodingConfig.InterfaceRegistry)
 
 	return encodingConfig
 }
