@@ -22,8 +22,10 @@ type Connection struct {
 	RParams
 	symbol               core.RSymbol
 	poolClients          map[string]*hubClient.Client // map[pool address]subClient
-	poolSubKey           map[string]string            // map[pool address]subkey
-	poolThreshold        map[string]uint32            // map[pool address]threshold
+	icaPoolClients       map[string]*hubClient.Client // map[ica pool address]subClient
+	rewardAddress        map[string]types.AccAddress
+	poolSubKey           map[string]string // map[pool address]subkey
+	poolThreshold        map[string]uint32 // map[pool address]threshold
 	log                  log.Logger
 	poolTargetValidators map[string][]types.ValAddress
 	poolTargetMutex      sync.RWMutex
@@ -83,9 +85,11 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	if err != nil {
 		return nil, err
 	}
-	poolClients := make(map[string]*hubClient.Client)
-	poolSubkey := make(map[string]string)
 
+	poolClients := make(map[string]*hubClient.Client)
+	icaPoolClients := make(map[string]*hubClient.Client)
+	poolSubkey := make(map[string]string)
+	// pool clients
 	for poolName, subKeyName := range option.PoolNameSubKey {
 		poolInfo, err := key.Key(poolName)
 		if err != nil {
@@ -107,8 +111,28 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 			return nil, fmt.Errorf("leastBond denom: %s not equal poolClient's denom: %s", leastBond.Denom, poolClient.GetDenom())
 		}
 	}
-	if len(poolClients) == 0 {
+
+	// ica pool clients
+	for _, icaPool := range option.IcaPools {
+		poolClient, err := hubClient.NewClient(nil, "", "", option.AccountPrefix, cfg.EndpointList)
+		if err != nil {
+			return nil, err
+		}
+		icaPoolClients[icaPool] = poolClient
+		if poolClient.GetDenom() != leastBond.Denom {
+			return nil, fmt.Errorf("leastBond denom: %s not equal poolClient's denom: %s", leastBond.Denom, poolClient.GetDenom())
+		}
+	}
+
+	if len(poolClients) == 0 && len(icaPoolClients) == 0 {
 		return nil, fmt.Errorf("no pool clients")
+	}
+
+	// ensure not duplicate
+	for poolAddr, _ := range poolClients {
+		if _, exist := icaPoolClients[poolAddr]; exist {
+			return nil, fmt.Errorf("duplicate pool address")
+		}
 	}
 
 	c := Connection{
@@ -119,6 +143,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		},
 		symbol:               core.RSymbol(cfg.Rsymbol),
 		poolClients:          poolClients,
+		icaPoolClients:       icaPoolClients,
 		poolSubKey:           poolSubkey,
 		poolThreshold:        option.PoolAddressThreshold,
 		poolTargetValidators: valsMap,
@@ -128,6 +153,11 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 }
 
 func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
+	for _, sub := range c.icaPoolClients {
+		if sub != nil {
+			return sub, nil
+		}
+	}
 	for _, sub := range c.poolClients {
 		if sub != nil {
 			return sub, nil
@@ -136,16 +166,24 @@ func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
 	return nil, errors.New("no subClient")
 }
 
-func (c *Connection) GetPoolClient(poolAddrStr string) (*hubClient.Client, error) {
-	if sub, exist := c.poolClients[poolAddrStr]; exist {
-		return sub, nil
+func (c *Connection) GetPoolClient(poolAddrStr string) (*hubClient.Client, bool, error) {
+
+	if sub, exist := c.icaPoolClients[poolAddrStr]; exist {
+		return sub, true, nil
 	}
-	return nil, fmt.Errorf("subClient of this pool: %s not exist", poolAddrStr)
+
+	if sub, exist := c.poolClients[poolAddrStr]; exist {
+		return sub, false, nil
+	}
+	return nil, false, fmt.Errorf("subClient of this pool: %s not exist", poolAddrStr)
 }
 
 func (c *Connection) BlockStoreUseAddress() string {
 	poolSlice := make([]string, 0)
 	for pool := range c.poolClients {
+		poolSlice = append(poolSlice, pool)
+	}
+	for pool := range c.icaPoolClients {
 		poolSlice = append(poolSlice, pool)
 	}
 
@@ -204,4 +242,11 @@ func (c *Connection) GetPoolSubkeyName(poolAddrStr string) (string, error) {
 		return value, nil
 	}
 	return "", fmt.Errorf("subkey name this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) GetRewardAddress(poolAddrStr string) (types.AccAddress, error) {
+	if value, exist := c.rewardAddress[poolAddrStr]; exist {
+		return value, nil
+	}
+	return types.AccAddress{}, fmt.Errorf("reward address of this pool: %s not exist", poolAddrStr)
 }

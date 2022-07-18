@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
@@ -23,19 +25,35 @@ import (
 var client *hubClient.Client
 
 func initClient() {
-	// key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"))
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	var err error
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
+	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"))
 	if err != nil {
 		panic(err)
 	}
+
+	// var err error
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
+	client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
+	if err != nil {
+		panic(err)
+	}
+}
+
+func TestQueryBlock(t *testing.T) {
+	initClient()
+
+	init := int64(1327510)
+	end := int64(1317510)
+	initBlock, _ := client.QueryBlock(init)
+	endBlock, _ := client.QueryBlock(end)
+	t.Log("init height", init, "timestamp", initBlock.Block.Header.Time.Unix())
+	t.Log("end height", end, "timestamp", endBlock.Block.Header.Time.Unix())
+	t.Log(initBlock.Block.Header.Time.Unix() - endBlock.Block.Time.Unix())
+	du := (initBlock.Block.Header.Time.Unix() - endBlock.Block.Time.Unix()) * 1000 / (init - end)
+	t.Log(du)
 }
 
 func TestClient_GetHeightByEra(t *testing.T) {
@@ -357,7 +375,7 @@ func TestGetValidators(t *testing.T) {
 
 func TestGetBlockResults(t *testing.T) {
 	initClient()
-	result, err := client.GetBlockResults(10776032)
+	result, err := client.GetBlockResults(1325545)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,4 +390,49 @@ func TestQueryRedelegations(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(res.Pagination.Total)
+}
+
+func TestWithdraw(t *testing.T) {
+	initClient()
+	balance, err := client.QueryBalance(client.GetFromAddress(), "stake", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("balance", balance)
+
+	delegations, err := client.QueryDelegations(client.GetFromAddress(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(delegations)
+
+	valAddr, err := types.ValAddressFromBech32(delegations.DelegationResponses[0].Delegation.ValidatorAddress)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rewards, err := client.QueryDelegationRewards(client.GetFromAddress(), valAddr, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("rewards", rewards)
+
+	reward := rewards.Rewards.AmountOf("stake").TruncateInt()
+
+	msgs := make([]types.Msg, 0)
+	msgs = append(msgs, xStakingType.NewMsgDelegate(client.GetFromAddress(), valAddr, types.NewCoin("stake", reward)))
+	// msgs = append(msgs, xDistributionType.NewMsgWithdrawDelegatorReward(client.GetFromAddress(), valAddr))
+
+	txbts, err := client.ConstructAndSignTx(msgs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	txHash, err := client.BroadcastTx(txbts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(txHash)
+
 }

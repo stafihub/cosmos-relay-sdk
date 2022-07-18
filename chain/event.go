@@ -118,7 +118,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 		memoInTx = memoTx.GetMemo()
 
 		if isRecover {
-			return l.dealRecorver(client, recipient, from, signer, bonder, txHash, coin)
+			return l.dealRecover(client, recipient, from, signer, bonder, txHash, coin)
 		} else {
 			return l.dealMemo(client, memoInTx, recipient, from, txHash, coin)
 		}
@@ -128,7 +128,7 @@ func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte,
 	}
 }
 
-func (l Listener) dealRecorver(poolClient *hubClient.Client, recipient, from, signer, bonder, txHash string, coin types.Coin) error {
+func (l Listener) dealRecover(poolClient *hubClient.Client, recipient, from, signer, bonder, txHash string, coin types.Coin) error {
 	proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 		Denom:  string(l.symbol),
 		Bonder: zeroStafiAddressStr,
@@ -257,7 +257,7 @@ func (l *Listener) processRecoveredTx(poolClient *hubClient.Client, tx *types.Tx
 	return nil
 }
 
-//todo blocked until tx is dealed on stafichain
+// blocked until tx is dealed on stafichain
 func (l Listener) SubmitProposalExeLiquidityBond(proposalExeLiquidityBond core.ProposalExeLiquidityBond) error {
 	m := core.Message{
 		Source:      l.symbol,
