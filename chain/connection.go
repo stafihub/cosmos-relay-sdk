@@ -23,9 +23,9 @@ type Connection struct {
 	symbol               core.RSymbol
 	poolClients          map[string]*hubClient.Client // map[pool address]subClient
 	icaPoolClients       map[string]*hubClient.Client // map[ica pool address]subClient
-	rewardAddresses      map[string]types.AccAddress
-	poolSubKey           map[string]string // map[pool address]subkey
-	poolThreshold        map[string]uint32 // map[pool address]threshold
+	rewardAddresses      map[string]types.AccAddress  // map[ica pool address]rewardAddress
+	poolSubKey           map[string]string            // map[pool address]subkey
+	poolThreshold        map[string]uint32            // map[pool address]threshold
 	log                  log.Logger
 	poolTargetValidators map[string][]types.ValAddress
 	poolTargetMutex      sync.RWMutex
@@ -80,10 +80,13 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		return nil, err
 	}
 
-	fmt.Printf("Will open %s wallet from <%s>. \nPlease ", cfg.Name, cfg.KeystorePath)
-	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
-	if err != nil {
-		return nil, err
+	var key keyring.Keyring
+	if len(option.PoolNameSubKey) != 0 {
+		fmt.Printf("Will open %s wallet from <%s>. \nPlease ", cfg.Name, cfg.KeystorePath)
+		key, err = keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	poolClients := make(map[string]*hubClient.Client)

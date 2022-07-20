@@ -191,6 +191,8 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 }
 
 func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, eventEraPoolUpdated core.EventEraPoolUpdated) error {
+	h.log.Info("dealIcaEraPoolUpdatedEvent", "event", eventEraPoolUpdated)
+
 	snap := eventEraPoolUpdated.Snapshot
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.Pool)
@@ -267,10 +269,11 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		return err
 	}
 
-	h.log.Error("sendInterchainTx",
+	h.log.Info("sendInterchainTx",
 		"pool address", poolAddressStr,
 		"era", snap.Era,
-		"interchainTx", interchainTx.String())
+		"propId", interchainTx.PropId,
+		"msgs", msgs)
 
 	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {

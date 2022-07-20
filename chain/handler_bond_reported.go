@@ -197,8 +197,9 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 }
 
 func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eventBondReported core.EventBondReported) error {
-	snap := eventBondReported.Snapshot
+	h.log.Info("dealIcaPoolBondReportedEvent", "event", eventBondReported)
 
+	snap := eventBondReported.Snapshot
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
@@ -270,23 +271,26 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	if err != nil {
 		return err
 	}
+
+	msgs := []types.Msg{&msg}
 	proposalInterchainTx := core.ProposalInterchainTx{
 		Denom:  snap.Denom,
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
 		TxType: stafiHubXLedgerTypes.TxTypeReserved,
 		Factor: 0,
-		Msgs:   []types.Msg{&msg},
+		Msgs:   msgs,
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)
 	if err != nil {
 		return err
 	}
-	h.log.Error("sendInterchainTx",
+	h.log.Info("sendInterchainTx",
 		"pool address", poolAddressStr,
 		"era", snap.Era,
-		"interchainTx", interchainTx.String())
+		"propId", interchainTx.PropId,
+		"msgs", msgs)
 
 	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
@@ -301,7 +305,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		return err
 	}
 
-	msgs, err := poolClient.GenDelegateMsgs(
+	msgs, err = poolClient.GenDelegateMsgs(
 		poolAddress,
 		targetValidators,
 		*rewardBalanceRes.Balance)
@@ -332,10 +336,11 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	if err != nil {
 		return err
 	}
-	h.log.Error("sendInterchainTx",
+	h.log.Info("sendInterchainTx",
 		"pool address", poolAddressStr,
 		"era", snap.Era,
-		"interchainTx", interchainTx.String())
+		"propId", interchainTx.PropId,
+		"msgs", msgs)
 
 	status, err = h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {

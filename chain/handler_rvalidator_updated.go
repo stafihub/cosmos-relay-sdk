@@ -174,6 +174,7 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 }
 
 func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, eventRValidatorUpdated core.EventRValidatorUpdated) error {
+	h.log.Info("dealIcaRValidatorUpdatedEvent", "event", eventRValidatorUpdated)
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(eventRValidatorUpdated.PoolAddress)
 	if err != nil {
@@ -251,10 +252,11 @@ func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, ev
 	if err != nil {
 		return err
 	}
-	h.log.Error("sendInterchainTx",
+	h.log.Info("sendInterchainTx",
 		"pool address", poolAddressStr,
 		"era", eventRValidatorUpdated.Era,
-		"interchainTx", interchainTx.String())
+		"propId", interchainTx.PropId,
+		"msgs", msgs)
 
 	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
