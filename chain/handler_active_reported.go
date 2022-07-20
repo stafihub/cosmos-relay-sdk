@@ -198,27 +198,36 @@ func (h *Handler) dealIcaActiveReportedEvent(poolClient *hubClient.Client, event
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
-		stafiHubXLedgerTypes.TxTypeDealEraUpdated,
+		stafiHubXLedgerTypes.TxTypeDealActiveReported,
 		0,
 		msgs)
 	if err != nil {
 		return err
 	}
 	proposalInterchainTx := core.ProposalInterchainTx{
-		InterchainTx: *interchainTx,
+		Denom:  snap.Denom,
+		Pool:   poolAddressStr,
+		Era:    snap.Era,
+		TxType: stafiHubXLedgerTypes.TxTypeDealActiveReported,
+		Factor: 0,
+		Msgs:   msgs,
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)
 	if err != nil {
 		return err
 	}
+	h.log.Error("sendInterchainTx",
+		"pool address", poolAddressStr,
+		"era", snap.Era,
+		"interchainTx", interchainTx.String())
 
-	status, err := h.mustGetProposalStatusFromStafiHub(interchainTx.PropId)
+	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
 		return err
 	}
 	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
-		return fmt.Errorf("proposalId %s status: %s", interchainTx.PropId, status)
+		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 	return h.sendTransferReportMsg(eventActiveReported.ShotId)
 }

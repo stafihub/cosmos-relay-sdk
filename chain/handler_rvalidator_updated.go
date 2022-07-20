@@ -10,35 +10,6 @@ import (
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 )
 
-// update rvalidator added
-func (h *Handler) handleRValidatorAddedEvent(m *core.Message) error {
-	h.log.Info("handleRValidatorAddedEvent", "m", m)
-
-	eventRValidatorAdded, ok := m.Content.(core.EventRValidatorAdded)
-	if !ok {
-		return fmt.Errorf("EventRValidatorAdded cast failed, %+v", m)
-	}
-
-	poolClient, _, err := h.conn.GetPoolClient(eventRValidatorAdded.PoolAddress)
-	if err != nil {
-		h.log.Error("handleRValidatorAddedEvent GetPoolClient failed",
-			"pool address", eventRValidatorAdded.PoolAddress,
-			"error", err)
-		return err
-	}
-
-	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
-	addedValAddress, err := types.ValAddressFromBech32(eventRValidatorAdded.AddedAddress)
-	if err != nil {
-		done()
-		return err
-	}
-	done()
-
-	h.conn.AddPoolTargetValidator(eventRValidatorAdded.PoolAddress, addedValAddress)
-	return nil
-}
-
 //process validatorUpdated
 //1 gen redelegate unsigned tx and cache it
 //2 sign it with subKey
@@ -261,27 +232,36 @@ func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, ev
 		eventRValidatorUpdated.Denom,
 		poolAddressStr,
 		eventRValidatorUpdated.Era,
-		stafiHubXLedgerTypes.TxTypeDealEraUpdated,
+		stafiHubXLedgerTypes.TxTypeDealValidatorUpdated,
 		0,
 		msgs)
 	if err != nil {
 		return err
 	}
 	proposalInterchainTx := core.ProposalInterchainTx{
-		InterchainTx: *interchainTx,
+		Denom:  eventRValidatorUpdated.Denom,
+		Pool:   poolAddressStr,
+		Era:    eventRValidatorUpdated.Era,
+		TxType: stafiHubXLedgerTypes.TxTypeDealValidatorUpdated,
+		Factor: 0,
+		Msgs:   msgs,
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)
 	if err != nil {
 		return err
 	}
+	h.log.Error("sendInterchainTx",
+		"pool address", poolAddressStr,
+		"era", eventRValidatorUpdated.Era,
+		"interchainTx", interchainTx.String())
 
-	status, err := h.mustGetProposalStatusFromStafiHub(interchainTx.PropId)
+	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
 		return err
 	}
 	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
-		return fmt.Errorf("proposalId %s status: %s", interchainTx.PropId, status)
+		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 	return h.sendRValidatorUpdateReportReportMsg(poolAddressStr, eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
 }

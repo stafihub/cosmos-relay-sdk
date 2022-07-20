@@ -221,15 +221,42 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	done()
 
 	// todo get target height
-	rewardBalance, err := poolClient.QueryBalance(rewardAddress, h.conn.leastBond.Denom, 0)
+	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
+	if err != nil {
+		h.log.Error("handleEraPoolUpdatedEvent GetHeightByEra failed",
+			"pool address", poolAddressStr,
+			"era", snap.Era,
+			"err", err)
+		return err
+	}
+
+	rewardBalanceRes, err := poolClient.QueryBalance(rewardAddress, h.conn.leastBond.Denom, height)
 	if err != nil {
 		return err
+	}
+	// no need res stake reward
+	if rewardBalanceRes.Balance.IsZero() {
+		total := types.NewInt(0)
+		delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
+		if err != nil {
+			if !strings.Contains(err.Error(), "unable to find delegations for address") {
+				h.log.Error("QueryDelegations failed",
+					"pool", poolAddressStr,
+					"err", err)
+				return err
+			}
+		} else {
+			for _, dele := range delegationsRes.GetDelegationResponses() {
+				total = total.Add(dele.Balance.Amount)
+			}
+		}
+		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
 
 	msg := sdkXBankTypes.MsgSend{
 		FromAddress: rewardAddressStr,
 		ToAddress:   poolAddressStr,
-		Amount:      []types.Coin{*rewardBalance.Balance},
+		Amount:      types.NewCoins(*rewardBalanceRes.Balance),
 	}
 
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
@@ -244,21 +271,31 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		return err
 	}
 	proposalInterchainTx := core.ProposalInterchainTx{
-		InterchainTx: *interchainTx,
+		Denom:  snap.Denom,
+		Pool:   poolAddressStr,
+		Era:    snap.Era,
+		TxType: stafiHubXLedgerTypes.TxTypeReserved,
+		Factor: 0,
+		Msgs:   []types.Msg{&msg},
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)
 	if err != nil {
 		return err
 	}
+	h.log.Error("sendInterchainTx",
+		"pool address", poolAddressStr,
+		"era", snap.Era,
+		"interchainTx", interchainTx.String())
 
-	status, err := h.mustGetProposalStatusFromStafiHub(interchainTx.PropId)
+	status, err := h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
 		return err
 	}
 	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
-		return fmt.Errorf("proposalId %s status: %s", interchainTx.PropId, status)
+		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
+
 	targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
 	if err != nil {
 		return err
@@ -267,7 +304,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	msgs, err := poolClient.GenDelegateMsgs(
 		poolAddress,
 		targetValidators,
-		*rewardBalance.Balance)
+		*rewardBalanceRes.Balance)
 	if err != nil {
 		return err
 	}
@@ -276,27 +313,36 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
-		stafiHubXLedgerTypes.TxTypeReserved,
+		stafiHubXLedgerTypes.TxTypeDealBondReported,
 		0,
 		msgs)
 	if err != nil {
 		return err
 	}
 	proposalInterchainTx = core.ProposalInterchainTx{
-		InterchainTx: *interchainTx,
+		Denom:  snap.Denom,
+		Pool:   poolAddressStr,
+		Era:    snap.Era,
+		TxType: stafiHubXLedgerTypes.TxTypeDealBondReported,
+		Factor: 0,
+		Msgs:   msgs,
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)
 	if err != nil {
 		return err
 	}
+	h.log.Error("sendInterchainTx",
+		"pool address", poolAddressStr,
+		"era", snap.Era,
+		"interchainTx", interchainTx.String())
 
-	status, err = h.mustGetProposalStatusFromStafiHub(interchainTx.PropId)
+	status, err = h.mustGetInterchainTxStatusFromStafiHub(interchainTx.PropId)
 	if err != nil {
 		return err
 	}
 	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
-		return fmt.Errorf("proposalId %s status: %s", interchainTx.PropId, status)
+		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 
 	total := types.NewInt(0)

@@ -182,6 +182,11 @@ func (l *Listener) submitMessage(m *core.Message) error {
 
 func (l *Listener) hasPool(p string) bool {
 	_, exist := l.conn.poolClients[p]
+	if exist {
+		return true
+	}
+	_, exist = l.conn.icaPoolClients[p]
+
 	return exist
 }
 

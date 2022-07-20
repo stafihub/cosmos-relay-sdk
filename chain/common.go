@@ -912,20 +912,25 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	}
 }
 
-func (h *Handler) mustGetProposalStatusFromStafiHub(propId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
+func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
 	retry := 0
 	for {
 		if retry > BlockRetryLimit {
-			return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("mustGetProposalStatusFromStafiHub reach retry limit, propId: %s", propId)
+			return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("mustGetInterchainTxStatusFromStafiHub reach retry limit, propId: %s", propId)
 		}
-		status, err := h.getProposalStatusFromStafiHub(propId)
+		status, err := h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
 			retry++
-			h.log.Debug("getSignatureFromStafiHub failed, will retry.", "err", err)
+			h.log.Debug("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
-
+		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
+			retry++
+			h.log.Debug("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
 		return status, nil
 	}
 }
@@ -969,30 +974,30 @@ func (h *Handler) getSignatureFromStafiHub(param *core.ParamSubmitSignature) (si
 	}
 }
 
-func (h *Handler) getProposalStatusFromStafiHub(proposalId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
-	getProposalStatus := core.ParamGetProposalStatus{
+func (h *Handler) getInterchainTxStatusFromStafiHub(proposalId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
+	getInterchainTxStatus := core.ParamGetInterchainTxStatus{
 		PropId: proposalId,
 		Status: make(chan stafiHubXLedgerTypes.InterchainTxStatus, 1),
 	}
 	msg := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
-		Reason:      core.ReasonGetProposalStatus,
-		Content:     getProposalStatus,
+		Reason:      core.ReasonGetInterchainTxStatus,
+		Content:     getInterchainTxStatus,
 	}
 	err = h.router.Send(&msg)
 	if err != nil {
-		return stafiHubXLedgerTypes.InterchainTxStatusInit, err
+		return stafiHubXLedgerTypes.InterchainTxStatusUnspecified, err
 	}
 
 	timer := time.NewTimer(10 * time.Second)
 	defer timer.Stop()
 
-	h.log.Debug("wait getProposalStatusFromStafiHub from stafihub", "rSymbol", h.conn.symbol)
+	h.log.Debug("wait getInterchainTxStatusFromStafiHub from stafihub", "rSymbol", h.conn.symbol)
 	select {
 	case <-timer.C:
-		return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("getProposalStatus from stafihub timeout")
-	case status := <-getProposalStatus.Status:
+		return stafiHubXLedgerTypes.InterchainTxStatusUnspecified, fmt.Errorf("getInterchainTxStatus from stafihub timeout")
+	case status := <-getInterchainTxStatus.Status:
 		return status, nil
 	}
 }

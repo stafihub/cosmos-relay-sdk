@@ -23,7 +23,7 @@ type Connection struct {
 	symbol               core.RSymbol
 	poolClients          map[string]*hubClient.Client // map[pool address]subClient
 	icaPoolClients       map[string]*hubClient.Client // map[ica pool address]subClient
-	rewardAddress        map[string]types.AccAddress
+	rewardAddresses      map[string]types.AccAddress
 	poolSubKey           map[string]string // map[pool address]subkey
 	poolThreshold        map[string]uint32 // map[pool address]threshold
 	log                  log.Logger
@@ -89,6 +89,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	poolClients := make(map[string]*hubClient.Client)
 	icaPoolClients := make(map[string]*hubClient.Client)
 	poolSubkey := make(map[string]string)
+	rewardAddrs := make(map[string]types.AccAddress)
 	// pool clients
 	for poolName, subKeyName := range option.PoolNameSubKey {
 		poolInfo, err := key.Key(poolName)
@@ -113,12 +114,22 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	}
 
 	// ica pool clients
-	for _, icaPool := range option.IcaPools {
+	for delegationAddr, withdrawalAddr := range option.IcaPools {
 		poolClient, err := hubClient.NewClient(nil, "", "", option.AccountPrefix, cfg.EndpointList)
 		if err != nil {
 			return nil, err
 		}
-		icaPoolClients[icaPool] = poolClient
+		icaPoolClients[delegationAddr] = poolClient
+
+		done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
+		withdrawalAddress, err := types.AccAddressFromBech32(withdrawalAddr)
+		if err != nil {
+			done()
+			return nil, err
+		}
+		done()
+
+		rewardAddrs[delegationAddr] = withdrawalAddress
 		if poolClient.GetDenom() != leastBond.Denom {
 			return nil, fmt.Errorf("leastBond denom: %s not equal poolClient's denom: %s", leastBond.Denom, poolClient.GetDenom())
 		}
@@ -144,6 +155,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		symbol:               core.RSymbol(cfg.Rsymbol),
 		poolClients:          poolClients,
 		icaPoolClients:       icaPoolClients,
+		rewardAddresses:      rewardAddrs,
 		poolSubKey:           poolSubkey,
 		poolThreshold:        option.PoolAddressThreshold,
 		poolTargetValidators: valsMap,
@@ -245,7 +257,7 @@ func (c *Connection) GetPoolSubkeyName(poolAddrStr string) (string, error) {
 }
 
 func (c *Connection) GetRewardAddress(poolAddrStr string) (types.AccAddress, error) {
-	if value, exist := c.rewardAddress[poolAddrStr]; exist {
+	if value, exist := c.rewardAddresses[poolAddrStr]; exist {
 		return value, nil
 	}
 	return types.AccAddress{}, fmt.Errorf("reward address of this pool: %s not exist", poolAddrStr)
