@@ -20,13 +20,17 @@ import (
 
 type Connection struct {
 	RParams
-	symbol               core.RSymbol
-	poolClients          map[string]*hubClient.Client // map[pool address]subClient
-	icaPoolClients       map[string]*hubClient.Client // map[ica pool address]subClient
-	rewardAddresses      map[string]types.AccAddress  // map[ica pool address]rewardAddress
-	poolSubKey           map[string]string            // map[pool address]subkey
-	poolThreshold        map[string]uint32            // map[pool address]threshold
-	log                  log.Logger
+	symbol core.RSymbol
+	log    log.Logger
+
+	poolClients   map[string]*hubClient.Client // map[pool address]subClient
+	poolSubKey    map[string]string            // map[pool address]subkey
+	poolThreshold map[string]uint32            // map[pool address]threshold
+
+	icaPoolClients     map[string]*hubClient.Client // map[ica pool address]subClient
+	icaPoolRewardAddr  map[string]types.AccAddress  // map[ica pool address]rewardAddress
+	icaPoolCtrlChannel map[string]string            // map[ica pool address]srcChannelId
+
 	poolTargetValidators map[string][]types.ValAddress
 	poolTargetMutex      sync.RWMutex
 }
@@ -117,7 +121,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	}
 
 	// ica pool clients
-	for delegationAddr, withdrawalAddr := range option.IcaPools {
+	for delegationAddr, withdrawalAddr := range option.IcaPoolWithdrawalAddr {
 		poolClient, err := hubClient.NewClient(nil, "", "", option.AccountPrefix, cfg.EndpointList)
 		if err != nil {
 			return nil, err
@@ -158,7 +162,8 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		symbol:               core.RSymbol(cfg.Rsymbol),
 		poolClients:          poolClients,
 		icaPoolClients:       icaPoolClients,
-		rewardAddresses:      rewardAddrs,
+		icaPoolRewardAddr:    rewardAddrs,
+		icaPoolCtrlChannel:   option.IcaPoolCtrlChannel,
 		poolSubKey:           poolSubkey,
 		poolThreshold:        option.PoolAddressThreshold,
 		poolTargetValidators: valsMap,
@@ -259,9 +264,16 @@ func (c *Connection) GetPoolSubkeyName(poolAddrStr string) (string, error) {
 	return "", fmt.Errorf("subkey name this pool: %s not exist", poolAddrStr)
 }
 
-func (c *Connection) GetRewardAddress(poolAddrStr string) (types.AccAddress, error) {
-	if value, exist := c.rewardAddresses[poolAddrStr]; exist {
+func (c *Connection) GetIcaPoolRewardAddress(poolAddrStr string) (types.AccAddress, error) {
+	if value, exist := c.icaPoolRewardAddr[poolAddrStr]; exist {
 		return value, nil
 	}
 	return types.AccAddress{}, fmt.Errorf("reward address of this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) GetIcaPoolCtrlChannelId(poolAddrStr string) (string, error) {
+	if value, exist := c.icaPoolCtrlChannel[poolAddrStr]; exist {
+		return value, nil
+	}
+	return "", fmt.Errorf("srcChannelId of this pool: %s not exist", poolAddrStr)
 }

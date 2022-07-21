@@ -17,6 +17,7 @@ import (
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
+	icatypes "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
@@ -720,6 +721,44 @@ func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.Tx
 	}
 
 	return txs.Txs[0], txs.Txs[0].Height, nil
+}
+
+// used for ica pool
+func GetLatestDealEraUpdatedTx(c *hubClient.Client, srcChannelId string) (*types.TxResponse, int64, error) {
+	txs, err := c.GetTxs(
+		[]string{
+			fmt.Sprintf("recv_packet.packet_src_channel='%s'", srcChannelId),
+		}, 1, 3, "desc")
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(txs.Txs) == 0 {
+		return nil, 0, nil
+	}
+
+	for _, tx := range txs.Txs {
+		for _, event := range tx.Events {
+			if event.Type == "recv_packet" {
+				for _, a := range event.Attributes {
+					if string(a.Key) == "packet_data_hex" {
+						bts, err := hex.DecodeString(string(a.Value))
+						if err == nil {
+							var packetData icatypes.InterchainAccountPacketData
+							err := icatypes.ModuleCdc.UnmarshalJSON(bts, &packetData)
+							if err == nil {
+								if packetData.Memo == stafiHubXLedgerTypes.TxTypeDealEraUpdated.String() {
+									return tx, tx.Height, nil
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil, 0, nil
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,

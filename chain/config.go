@@ -14,9 +14,8 @@ type ConfigOption struct {
 	AccountPrefix string `json:"accountPrefix"`
 
 	// get from stafihub
-	IcaPools map[string]string //delegationAddres => withdrawalAddress
-	// get from stafihub rvalidator
-	PoolTargetValidators map[string][]string `json:"targetValidators"`
-	// get from stafihub pooldetail
-	PoolAddressThreshold map[string]uint32 `json:"poolThreshold"`
+	IcaPoolWithdrawalAddr map[string]string   //delegationAddres => withdrawalAddress
+	IcaPoolCtrlChannel    map[string]string   //delegationAddres => srcChannelId
+	PoolTargetValidators  map[string][]string `json:"targetValidators"`
+	PoolAddressThreshold  map[string]uint32   `json:"poolThreshold"`
 }
