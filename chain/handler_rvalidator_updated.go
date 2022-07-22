@@ -8,6 +8,7 @@ import (
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
+	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
 //process validatorUpdated
@@ -62,8 +63,6 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	}
 	done()
 
-	h.conn.ReplacePoolTargetValidator(poolAddressStr, oldValidator, newValidator)
-
 	// got target height
 	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
 	if err != nil {
@@ -105,7 +104,9 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 		Type:           stafiHubXLedgerTypes.TxTypeDealValidatorUpdated,
 		PoolAddressStr: poolAddressStr,
 		CycleVersion:   eventRValidatorUpdated.CycleVersion,
-		CycleNumber:    eventRValidatorUpdated.CycleNumber}
+		CycleNumber:    eventRValidatorUpdated.CycleNumber,
+		OldValidator:   oldValidator,
+		NewValidator:   newValidator}
 
 	var txHash, txBts []byte
 	for i := 0; i < 5; i++ {
@@ -201,7 +202,6 @@ func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, ev
 	}
 	done()
 
-	h.conn.ReplacePoolTargetValidator(poolAddressStr, oldValidator, newValidator)
 	// got target height
 	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
 	if err != nil {
@@ -265,5 +265,12 @@ func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, ev
 	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
 		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
-	return h.sendRValidatorUpdateReportReportMsg(poolAddressStr, eventRValidatorUpdated.CycleVersion, eventRValidatorUpdated.CycleNumber)
+
+	// update target validator when redelegate success
+	h.conn.ReplacePoolTargetValidator(poolAddressStr, oldValidator, newValidator)
+	return h.sendRValidatorUpdateReportReportMsg(
+		poolAddressStr,
+		eventRValidatorUpdated.CycleVersion,
+		eventRValidatorUpdated.CycleNumber,
+		stafiHubXRValidatorTypes.UpdateRValidatorStatusSuccess)
 }

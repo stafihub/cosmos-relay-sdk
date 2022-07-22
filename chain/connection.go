@@ -2,6 +2,7 @@ package chain
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -52,6 +53,8 @@ type WrapUnsignedTx struct {
 	PoolAddressStr string
 	CycleVersion   uint64
 	CycleNumber    uint64
+	OldValidator   types.ValAddress
+	NewValidator   types.ValAddress
 }
 
 func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logger) (*Connection, error) {
@@ -74,6 +77,11 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 				return nil, err
 			}
 			vals = append(vals, useVal)
+		}
+
+		if err := checkDuplicate(vals); err != nil {
+			done()
+			return nil, err
 		}
 		valsMap[poolAddressStr] = vals
 	}
@@ -221,18 +229,44 @@ func (c *Connection) GetPoolTargetValidators(poolAddrStr string) ([]types.ValAdd
 	return nil, fmt.Errorf("target validators of this pool: %s not exist", poolAddrStr)
 }
 
-func (c *Connection) SetPoolTargetValidators(poolAddrStr string, vals []types.ValAddress) {
+func (c *Connection) SetPoolTargetValidators(poolAddrStr string, vals []types.ValAddress) error {
 	c.poolTargetMutex.Lock()
 	defer c.poolTargetMutex.Unlock()
 
+	if err := checkDuplicate(vals); err != nil {
+		return err
+	}
+
 	c.poolTargetValidators[poolAddrStr] = vals
+	return nil
+}
+
+func checkDuplicate(vals []types.ValAddress) error {
+	existVal := make(map[string]bool)
+	for _, val := range vals {
+		if existVal[hex.EncodeToString(val)] {
+			return fmt.Errorf("validator dubpicate err")
+		} else {
+			existVal[hex.EncodeToString(val)] = true
+		}
+	}
+	return nil
 }
 
 func (c *Connection) AddPoolTargetValidator(poolAddrStr string, newVal types.ValAddress) {
 	c.poolTargetMutex.Lock()
 	defer c.poolTargetMutex.Unlock()
 
-	c.poolTargetValidators[poolAddrStr] = append(c.poolTargetValidators[poolAddrStr], newVal)
+	newVals := make([]types.ValAddress, 0)
+	for _, val := range c.poolTargetValidators[poolAddrStr] {
+		// rm new if exist
+		if !bytes.Equal(val, newVal) {
+			newVals = append(newVals, val)
+		}
+	}
+	newVals = append(newVals, newVal)
+
+	c.poolTargetValidators[poolAddrStr] = newVals
 }
 
 func (c *Connection) ReplacePoolTargetValidator(poolAddrStr string, oldVal, newVal types.ValAddress) {
@@ -241,7 +275,8 @@ func (c *Connection) ReplacePoolTargetValidator(poolAddrStr string, oldVal, newV
 
 	newVals := make([]types.ValAddress, 0)
 	for _, val := range c.poolTargetValidators[poolAddrStr] {
-		if !bytes.Equal(val, oldVal) {
+		// rm old and new if exist
+		if !bytes.Equal(val, oldVal) && !bytes.Equal(val, newVal) {
 			newVals = append(newVals, val)
 		}
 	}

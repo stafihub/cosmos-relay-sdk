@@ -23,6 +23,7 @@ import (
 	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stafihub/rtoken-relay-core/common/utils"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
+	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
 var (
@@ -827,7 +828,14 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		case stafiHubXLedgerTypes.TxTypeDealActiveReported: //transfer unbond token to user
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
 		case stafiHubXLedgerTypes.TxTypeDealValidatorUpdated: // redelegate
-			return h.sendRValidatorUpdateReportReportMsg(wrappedUnSignedTx.PoolAddressStr, wrappedUnSignedTx.CycleVersion, wrappedUnSignedTx.CycleNumber)
+
+			// update target validator when redelegate success
+			h.conn.ReplacePoolTargetValidator(poolAddressStr, wrappedUnSignedTx.OldValidator, wrappedUnSignedTx.NewValidator)
+			return h.sendRValidatorUpdateReportReportMsg(
+				wrappedUnSignedTx.PoolAddressStr,
+				wrappedUnSignedTx.CycleVersion,
+				wrappedUnSignedTx.CycleNumber,
+				stafiHubXRValidatorTypes.UpdateRValidatorStatusSuccess)
 		default:
 			h.log.Warn("checkAndSend failed,unknown unsigned tx type",
 				"pool", poolAddressStr,
@@ -883,7 +891,7 @@ func (h *Handler) sendTransferReportMsg(shotId string) error {
 	return h.router.Send(&m)
 }
 
-func (h *Handler) sendRValidatorUpdateReportReportMsg(poolAddressStr string, cycleVersion, cycleNumber uint64) error {
+func (h *Handler) sendRValidatorUpdateReportReportMsg(poolAddressStr string, cycleVersion, cycleNumber uint64, status stafiHubXRValidatorTypes.UpdateRValidatorStatus) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
@@ -893,6 +901,7 @@ func (h *Handler) sendRValidatorUpdateReportReportMsg(poolAddressStr string, cyc
 			PoolAddress:  poolAddressStr,
 			CycleVersion: cycleVersion,
 			CycleNumber:  cycleNumber,
+			Status:       status,
 		},
 	}
 
