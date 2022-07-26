@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
-	"strings"
+	// "strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
@@ -25,18 +25,18 @@ import (
 var client *hubClient.Client
 
 func initClient() {
-	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"))
-	if err != nil {
-		panic(err)
-	}
+	// key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"))
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	// var err error
+	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
+	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
 	if err != nil {
 		panic(err)
 	}
@@ -435,4 +435,13 @@ func TestWithdraw(t *testing.T) {
 	}
 	t.Log(txHash)
 
+}
+
+func TestQueryVotes(t *testing.T) {
+	initClient()
+	votesRes, err := client.QueryVotes(72, 11214988, 1, 10, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(votesRes)
 }

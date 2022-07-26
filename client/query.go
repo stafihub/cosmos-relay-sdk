@@ -16,6 +16,7 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
+	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	xSlashingTypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
@@ -486,6 +487,36 @@ func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, erro
 		return nil, err
 	}
 	return cc.(*ctypes.ResultBlockResults), nil
+}
+
+func (c *Client) QueryVotes(proposalId uint64, height int64, page, limit uint64, countTotal bool) (*xGovTypes.QueryVotesResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		newCtx := c.Ctx().WithHeight(height)
+		queryClient := xGovTypes.NewQueryClient(newCtx)
+		return queryClient.Votes(context.Background(), &xGovTypes.QueryVotesRequest{
+			ProposalId: proposalId,
+			Pagination: &query.PageRequest{
+				Offset:     (page - 1) * limit,
+				Limit:      limit,
+				CountTotal: countTotal,
+				Reverse:    false,
+			},
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xGovTypes.QueryVotesResponse), nil
 }
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
