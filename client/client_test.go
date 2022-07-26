@@ -444,4 +444,13 @@ func TestQueryVotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(votesRes)
+	voter := votesRes.Votes[0].Voter
+	txs, err := client.GetTxs([]string{
+		fmt.Sprintf("message.sender='%s'", voter),
+		fmt.Sprintf("proposal_vote.proposal_id='%d'", 72),
+	}, 1, 2, "desc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(txs)
 }
