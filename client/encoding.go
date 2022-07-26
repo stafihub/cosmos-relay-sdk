@@ -9,15 +9,19 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
+	"github.com/cosmos/cosmos-sdk/x/authz/module"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	"github.com/cosmos/cosmos-sdk/x/capability"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	"github.com/cosmos/cosmos-sdk/x/distribution"
+	"github.com/cosmos/cosmos-sdk/x/evidence"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
 	"github.com/cosmos/cosmos-sdk/x/gov"
+	"github.com/cosmos/cosmos-sdk/x/mint"
 	"github.com/cosmos/cosmos-sdk/x/params"
 	"github.com/cosmos/cosmos-sdk/x/slashing"
 	"github.com/cosmos/cosmos-sdk/x/staking"
+	"github.com/cosmos/cosmos-sdk/x/upgrade"
 
 	interChain "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
 	ibcTransfer "github.com/cosmos/ibc-go/v3/modules/apps/transfer"
@@ -49,6 +53,10 @@ func MakeEncodingConfig() EncodingConfig {
 		crisis.AppModuleBasic{},
 		slashing.AppModuleBasic{},
 		gov.AppModuleBasic{},
+		authz.AppModuleBasic{},
+		evidence.AppModuleBasic{},
+		mint.AppModuleBasic{},
+		upgrade.AppModuleBasic{},
 
 		ibcTransfer.AppModuleBasic{},
 		ibcCore.AppModuleBasic{},

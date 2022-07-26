@@ -445,6 +445,7 @@ func TestQueryVotes(t *testing.T) {
 	}
 	t.Log(votesRes)
 	voter := votesRes.Votes[0].Voter
+	voter = "cosmos1zp0fgmh3sf3lls3xqy5xtax2m98l778mzgtlru"
 	txs, err := client.GetTxs([]string{
 		fmt.Sprintf("message.sender='%s'", voter),
 		fmt.Sprintf("proposal_vote.proposal_id='%d'", 72),

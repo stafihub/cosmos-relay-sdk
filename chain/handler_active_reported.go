@@ -182,11 +182,12 @@ func (h *Handler) dealIcaActiveReportedEvent(poolClient *hubClient.Client, event
 	poolAddressStr := poolAddress.String()
 	done()
 
-	msgs, _, err := GetTransferMsgs(poolClient, poolAddress, eventActiveReported.PoolUnbond, h.log)
+	msgs, outPuts, err := GetTransferMsgs(poolClient, poolAddress, eventActiveReported.PoolUnbond, h.log)
 	if err != nil && err != ErrNoOutPuts {
 		h.log.Error("handleActiveReportedEvent GetTransferUnsignedTx failed", "pool address", poolAddressStr, "err", err)
 		return err
 	}
+
 	if err == ErrNoOutPuts {
 		h.log.Info("handleActiveReportedEvent no need transfer Tx",
 			"pool address", poolAddressStr,
@@ -212,6 +213,31 @@ func (h *Handler) dealIcaActiveReportedEvent(poolClient *hubClient.Client, event
 		TxType: stafiHubXLedgerTypes.TxTypeDealActiveReported,
 		Factor: 0,
 		Msgs:   msgs,
+	}
+
+	totalSend := types.NewInt(0)
+	for _, out := range outPuts {
+		totalSend = totalSend.Add(out.Coins.AmountOf(poolClient.GetDenom()))
+	}
+	h.log.Info("dealIcaActiveReportedEvent gen transfer msg",
+		"pool address", poolAddressStr,
+		"out put", outPuts,
+		"proposalId", interchainTx.PropId,
+		"totalSend", totalSend.String())
+
+	// now we will wait until enough balance or sent on chain by other nodes
+	for {
+		balanceRes, err := poolClient.QueryBalance(poolAddress, poolClient.GetDenom(), 0)
+		if err == nil && balanceRes.Balance.Amount.GT(totalSend) {
+			break
+		}
+		// in case of sent on chain by other nodes
+		status, err := h.getInterchainTxStatusFromStafiHub(interchainTx.PropId)
+		if err == nil && status != stafiHubXLedgerTypes.InterchainTxStatusUnspecified {
+			break
+		}
+		h.log.Warn("pool balance not enouth and ica tx not execute, will wait", "pool address", poolAddressStr)
+		time.Sleep(6 * time.Second)
 	}
 
 	err = h.sendInterchainTx(&proposalInterchainTx)

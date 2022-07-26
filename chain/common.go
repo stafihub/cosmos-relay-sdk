@@ -534,16 +534,11 @@ func GetTransferUnsignedTxWithMemo(client *hubClient.Client, poolAddr types.AccA
 		outPuts = append(outPuts, out)
 	}
 	done()
-
+	outPuts = combineSameAddress(outPuts)
 	//len should not be 0
 	if len(outPuts) == 0 {
 		return nil, nil, ErrNoOutPuts
 	}
-
-	//sort outPuts for the same rawTx from different relayer
-	sort.SliceStable(outPuts, func(i, j int) bool {
-		return bytes.Compare([]byte(outPuts[i].Address), []byte(outPuts[j].Address)) < 0
-	})
 
 	txBts, err := client.GenMultiSigRawBatchTransferTxWithMemo(poolAddr, outPuts, memo)
 	if err != nil {
@@ -571,21 +566,41 @@ func GetTransferMsgs(client *hubClient.Client, poolAddr types.AccAddress, receiv
 	}
 	done()
 
+	outPuts = combineSameAddress(outPuts)
 	//len should not be 0
 	if len(outPuts) == 0 {
 		return nil, nil, ErrNoOutPuts
 	}
-
-	//sort outPuts for the same rawTx from different relayer
-	sort.SliceStable(outPuts, func(i, j int) bool {
-		return bytes.Compare([]byte(outPuts[i].Address), []byte(outPuts[j].Address)) < 0
-	})
 
 	msg, err := client.GenBatchTransferMsg(poolAddr, outPuts)
 	if err != nil {
 		return nil, nil, ErrNoOutPuts
 	}
 	return []types.Msg{msg}, outPuts, nil
+}
+
+func combineSameAddress(outPuts []xBankTypes.Output) []xBankTypes.Output {
+	amountMap := make(map[string]types.Coins)
+	for _, outPut := range outPuts {
+		if sendCoin, exist := amountMap[outPut.Address]; exist {
+			amountMap[outPut.Address] = amountMap[outPut.Address].Add(sendCoin...)
+		} else {
+			amountMap[outPut.Address] = sendCoin
+		}
+	}
+
+	retOutputs := make([]xBankTypes.Output, 0)
+	for address, sendCoins := range amountMap {
+		retOutputs = append(retOutputs, xBankTypes.Output{
+			Address: address,
+			Coins:   sendCoins,
+		})
+	}
+	//sort outPuts for the same rawTx from different relayer
+	sort.SliceStable(retOutputs, func(i, j int) bool {
+		return bytes.Compare([]byte(outPuts[i].Address), []byte(outPuts[j].Address)) < 0
+	})
+	return retOutputs
 }
 
 // get reward info of pre txs(tx in eraUpdatedEvent of this era and tx in bondReportedEvent/rValidatorUpdatedEvent of era-1)
