@@ -456,12 +456,12 @@ func TestQueryVotes(t *testing.T) {
 	t.Log(txs)
 }
 
-func TestQueryDelegations(t *testing.T){
+func TestQueryDelegations(t *testing.T) {
 	initClient()
 
-	delegator,_:=types.AccAddressFromBech32("cosmos1qtnr8xvcrv8daxy32yz2g6v9g69lwlh5rph4t4")
-	delegations,err:=client.QueryDelegationsNoLock(delegator,11056795)
-	if err!=nil{
+	delegator, _ := types.AccAddressFromBech32("cosmos1qtnr8xvcrv8daxy32yz2g6v9g69lwlh5rph4t4")
+	delegations, err := client.QueryDelegationsNoLock(delegator, 11056795)
+	if err != nil {
 		t.Fatal(err)
 	}
 	t.Log(delegations)

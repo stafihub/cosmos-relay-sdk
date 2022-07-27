@@ -228,7 +228,7 @@ func (h *Handler) dealIcaActiveReportedEvent(poolClient *hubClient.Client, event
 	// now we will wait until enough balance or sent on chain by other nodes
 	for {
 		balanceRes, err := poolClient.QueryBalance(poolAddress, poolClient.GetDenom(), 0)
-		if err == nil && balanceRes.Balance.Amount.GT(totalSend) {
+		if err == nil && balanceRes.Balance.Amount.GTE(totalSend) {
 			break
 		}
 		// in case of sent on chain by other nodes
