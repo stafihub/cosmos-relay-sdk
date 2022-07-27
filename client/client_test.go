@@ -16,7 +16,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/types"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stretchr/testify/assert"
@@ -302,7 +301,7 @@ func TestMemo(t *testing.T) {
 	memoTx, ok := tx.(types.TxWithMemo)
 	assert.Equal(t, true, ok)
 	t.Log(memoTx.GetMemo())
-	hb, _ := hexutil.Decode("0xbebd0355ae360c8e6a7ed940a819838c66ca7b8f581f9c0e81dbb5faff346a30")
+	hb, _ := hex.DecodeString("0xbebd0355ae360c8e6a7ed940a819838c66ca7b8f581f9c0e81dbb5faff346a30")
 	//t.Log(string(hb))
 	bonderAddr, _ := ss58.Encode(hb, ss58.StafiPrefix)
 	t.Log(bonderAddr)

@@ -9,8 +9,8 @@ import (
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
+	"github.com/stafihub/rtoken-relay-core/common/utils"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
-	"github.com/stafiprotocol/chainbridge/utils/blockstore"
 )
 
 var (
@@ -23,7 +23,7 @@ type Listener struct {
 	name               string
 	symbol             core.RSymbol
 	startBlock         uint64
-	blockstore         blockstore.Blockstorer
+	blockstore         utils.Blockstorer
 	conn               *Connection
 	router             *core.Router
 	log                log.Logger
@@ -32,7 +32,7 @@ type Listener struct {
 	sysErrChan         chan<- error
 }
 
-func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs blockstore.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
+func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
 	client, err := conn.GetOnePoolClient()
 	if err != nil {
 		sysErr <- fmt.Errorf("no pool client")
