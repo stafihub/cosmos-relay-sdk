@@ -840,6 +840,8 @@ github.com/stafihub/cosmos-sdk v0.45.6-stafihub-0.0.3 h1:Q80ilFAwYaiw/sTAC5ZLfMM
 github.com/stafihub/cosmos-sdk v0.45.6-stafihub-0.0.3/go.mod h1:bPeeVMEtVvH3y3xAGHVbK+/CZlpaazzh77hG8ZrcJpI=
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220727152457-224054b4f39e h1:Z7PPgJuPpcv8o0qh6LWI3payg66EGcpzMDtu6Es0fuY=
 github.com/stafihub/rtoken-relay-core/common v0.0.0-20220727152457-224054b4f39e/go.mod h1:nP1t63owCIWVztAxoJwfYnXpPgJHZY7uapl/uF4MCtY=
+github.com/stafihub/rtoken-relay-core/common v0.0.0-20220727155224-29894a3dcd47 h1:1nczloevy9lY7UqDadSqOnUwqanwtDU6J/q9qnxJQhE=
+github.com/stafihub/rtoken-relay-core/common v0.0.0-20220727155224-29894a3dcd47/go.mod h1:nP1t63owCIWVztAxoJwfYnXpPgJHZY7uapl/uF4MCtY=
 github.com/stafihub/stafihub v0.0.0-20220721150152-4a0ac3ba110f h1:JJaHKGSgj2rXPN2x+Zq2YiZahiQU5LGaaWJgnpU9XPE=
 github.com/stafihub/stafihub v0.0.0-20220721150152-4a0ac3ba110f/go.mod h1:kEVzgsDiNej4XHZmK0Zvb954Gowm1Qpxnb5H6VA5KJQ=
 github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4/go.mod h1:RZLeN1LMWmRsyYjvAu+I6Dm9QmlDaIIt+Y+4Kd7Tp+Q=
