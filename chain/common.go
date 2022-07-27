@@ -582,10 +582,10 @@ func GetTransferMsgs(client *hubClient.Client, poolAddr types.AccAddress, receiv
 func combineSameAddress(outPuts []xBankTypes.Output) []xBankTypes.Output {
 	amountMap := make(map[string]types.Coins)
 	for _, outPut := range outPuts {
-		if sendCoin, exist := amountMap[outPut.Address]; exist {
-			amountMap[outPut.Address] = amountMap[outPut.Address].Add(sendCoin...)
+		if existCoin, exist := amountMap[outPut.Address]; exist {
+			amountMap[outPut.Address] = existCoin.Add(outPut.Coins...)
 		} else {
-			amountMap[outPut.Address] = sendCoin
+			amountMap[outPut.Address] = outPut.Coins
 		}
 	}
 
