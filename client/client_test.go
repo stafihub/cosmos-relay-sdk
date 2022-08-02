@@ -110,7 +110,7 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 func TestClient_GetEvent(t *testing.T) {
 	initClient()
-	tx, err := client.GetBlockTxs(100)
+	tx, err := client.GetBlockTxsWithParseErrSkip(11499915)
 	if err != nil {
 		t.Fatal(err)
 	}

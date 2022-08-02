@@ -327,7 +327,8 @@ func (c *Client) GetTxsNoLock(events []string, page, limit int, orderBy string) 
 func (c *Client) GetTxsWithParseErrSkipNoLock(events []string, page, limit int, orderBy string) (*types.SearchTxsResult, error) {
 
 	cc, err := c.retry(func() (interface{}, error) {
-		return xAuthTx.QueryTxsByEventsWithParseErrSkip(c.Ctx(), events, page, limit, orderBy)
+		result, _, err := xAuthTx.QueryTxsByEventsWithParseErrSkip(c.Ctx(), events, page, limit, orderBy)
+		return result, err
 	})
 	if err != nil {
 		return nil, err
@@ -337,7 +338,7 @@ func (c *Client) GetTxsWithParseErrSkipNoLock(events []string, page, limit int, 
 
 // will skip txs that parse failed
 func (c *Client) GetBlockTxsWithParseErrSkipNoLock(height int64) ([]*types.TxResponse, error) {
-	searchTxs, err := c.GetTxsWithParseErrSkip([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
+	searchTxs, err := c.GetTxsWithParseErrSkipNoLock([]string{fmt.Sprintf("tx.height=%d", height)}, 1, 1000, "asc")
 	if err != nil {
 		return nil, err
 	}
