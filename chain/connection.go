@@ -21,8 +21,10 @@ import (
 
 type Connection struct {
 	RParams
-	symbol core.RSymbol
-	log    log.Logger
+	symbol        core.RSymbol
+	log           log.Logger
+	endpointList  []string
+	accountPrefix string
 
 	poolClients   map[string]*hubClient.Client // map[pool address]subClient
 	poolSubKey    map[string]string            // map[pool address]subkey
@@ -32,7 +34,9 @@ type Connection struct {
 	icaPoolRewardAddr  map[string]types.AccAddress  // map[ica pool address]rewardAddress
 	icaPoolCtrlChannel map[string]string            // map[ica pool address]srcChannelId
 
-	poolTargetValidators map[string][]types.ValAddress
+	poolClientMutex sync.RWMutex
+
+	poolTargetValidators map[string][]types.ValAddress //map[ pool/ica pool address] valaddresses
 	poolTargetMutex      sync.RWMutex
 }
 
@@ -167,13 +171,15 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 			leastBond:  leastBond,
 			offset:     int64(option.Offset),
 		},
+		endpointList:         cfg.EndpointList,
+		accountPrefix:        option.AccountPrefix,
 		symbol:               core.RSymbol(cfg.Rsymbol),
 		poolClients:          poolClients,
+		poolSubKey:           poolSubkey,
+		poolThreshold:        option.PoolAddressThreshold,
 		icaPoolClients:       icaPoolClients,
 		icaPoolRewardAddr:    rewardAddrs,
 		icaPoolCtrlChannel:   option.IcaPoolCtrlChannel,
-		poolSubKey:           poolSubkey,
-		poolThreshold:        option.PoolAddressThreshold,
 		poolTargetValidators: valsMap,
 		log:                  log,
 	}
@@ -195,6 +201,8 @@ func (c *Connection) GetOnePoolClient() (*hubClient.Client, error) {
 }
 
 func (c *Connection) GetPoolClient(poolAddrStr string) (*hubClient.Client, bool, error) {
+	c.poolClientMutex.RLock()
+	defer c.poolClientMutex.RUnlock()
 
 	if sub, exist := c.icaPoolClients[poolAddrStr]; exist {
 		return sub, true, nil
@@ -204,6 +212,76 @@ func (c *Connection) GetPoolClient(poolAddrStr string) (*hubClient.Client, bool,
 		return sub, false, nil
 	}
 	return nil, false, fmt.Errorf("subClient of this pool: %s not exist", poolAddrStr)
+}
+
+func (c *Connection) RemovePool(poolAddrStr string) {
+	c.RemovePoolClient(poolAddrStr)
+	c.RemovePoolTarget(poolAddrStr)
+}
+
+func (c *Connection) RemovePoolClient(poolAddrStr string) {
+	c.poolClientMutex.Lock()
+	defer c.poolClientMutex.Unlock()
+
+	if _, exist := c.poolClients[poolAddrStr]; exist {
+		delete(c.poolClients, poolAddrStr)
+		delete(c.poolSubKey, poolAddrStr)
+		delete(c.poolThreshold, poolAddrStr)
+		return
+	}
+
+	if _, exist := c.icaPoolClients[poolAddrStr]; exist {
+		delete(c.icaPoolClients, poolAddrStr)
+		delete(c.icaPoolRewardAddr, poolAddrStr)
+		delete(c.icaPoolCtrlChannel, poolAddrStr)
+		return
+	}
+}
+
+func (c *Connection) RemovePoolTarget(poolAddrStr string) {
+	c.poolTargetMutex.Lock()
+	defer c.poolTargetMutex.Unlock()
+
+	delete(c.poolTargetValidators, poolAddrStr)
+}
+
+func (c *Connection) AddIcaPool(poolAddrStr, withdrawalAddr, ctrlChannelId string, targetValidators []string) error {
+	c.poolClientMutex.Lock()
+	defer c.poolClientMutex.Unlock()
+
+	if _, exist := c.icaPoolClients[poolAddrStr]; exist {
+		return nil
+	}
+
+	poolClient, err := hubClient.NewClient(nil, "", "", c.accountPrefix, c.endpointList)
+	if err != nil {
+		return err
+	}
+	c.icaPoolClients[poolAddrStr] = poolClient
+
+	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
+	withdrawalAddress, err := types.AccAddressFromBech32(withdrawalAddr)
+	if err != nil {
+		done()
+		return err
+	}
+	done()
+
+	c.icaPoolRewardAddr[poolAddrStr] = withdrawalAddress
+	c.icaPoolCtrlChannel[poolAddrStr] = ctrlChannelId
+
+	done = core.UseSdkConfigContext(poolClient.GetAccountPrefix())
+	for _, targetVal := range targetValidators {
+		val, err := types.ValAddressFromBech32(targetVal)
+		if err != nil {
+			done()
+			return err
+		}
+		c.AddPoolTargetValidator(poolAddrStr, val)
+	}
+	done()
+
+	return nil
 }
 
 func (c *Connection) BlockStoreUseAddress() string {

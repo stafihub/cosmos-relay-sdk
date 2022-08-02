@@ -78,6 +78,10 @@ func (h *Handler) handleMessage(m *core.Message) error {
 		return h.handleRValidatorUpdatedEvent(m)
 	case core.ReasonRValidatorAddedEvent:
 		return h.handleRValidatorAddedEvent(m)
+	case core.ReasonInitPoolEvent:
+		return h.handleInitPoolEvent(m)
+	case core.ReasonRemovePoolEvent:
+		return h.handleRemovePoolEvent(m)
 	default:
 		return fmt.Errorf("message reason unsupported reason: %s", m.Reason)
 	}
@@ -106,5 +110,30 @@ func (h *Handler) handleRParamsChangedEvent(m *core.Message) error {
 			return fmt.Errorf("setGasPrice failed, err: %s", err)
 		}
 	}
+	return nil
+}
+
+// only support ica pool
+func (h *Handler) handleInitPoolEvent(m *core.Message) error {
+	h.log.Info("handleInitPoolEvent", "m", m)
+
+	eventInitPool, ok := m.Content.(core.EventInitPool)
+	if !ok {
+		return fmt.Errorf("EventInitPool cast failed, %+v", m)
+	}
+
+	return h.conn.AddIcaPool(eventInitPool.PoolAddress, eventInitPool.WithdrawalAddress, eventInitPool.CtrlChannelId, eventInitPool.Validators)
+}
+
+// support multisig/ica pool
+func (h *Handler) handleRemovePoolEvent(m *core.Message) error {
+	h.log.Info("handleRemovePoolEvent", "m", m)
+
+	eventRemovePool, ok := m.Content.(core.EventRemovePool)
+	if !ok {
+		return fmt.Errorf("EventRemovePool cast failed, %+v", m)
+	}
+
+	h.conn.RemovePool(eventRemovePool.PoolAddress)
 	return nil
 }
