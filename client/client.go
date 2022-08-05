@@ -16,7 +16,7 @@ import (
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
 )
 
-//cosmos client
+// cosmos client
 type Client struct {
 	clientCtx           client.Context
 	rpcClientList       []rpcClient.Client
@@ -114,12 +114,18 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endP
 			return nil, err
 		}
 
+		chaindId, err := retClient.GetChainId()
+		if err != nil {
+			return nil, err
+		}
+		retClient.clientCtx = retClient.clientCtx.WithChainID(chaindId)
+
 		retClient.setDenom(bondedDenom.Params.BondDenom)
 	}
 	return retClient, nil
 }
 
-//update clientCtx.FromName and clientCtx.FromAddress
+// update clientCtx.FromName and clientCtx.FromAddress
 func (c *Client) SetFromName(fromName string) error {
 	info, err := c.clientCtx.Keyring.Key(fromName)
 	if err != nil {

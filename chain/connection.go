@@ -21,7 +21,9 @@ import (
 
 type Connection struct {
 	RParams
-	symbol        core.RSymbol
+	symbol  core.RSymbol
+	chainId string
+
 	log           log.Logger
 	endpointList  []string
 	accountPrefix string
@@ -109,6 +111,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	icaPoolClients := make(map[string]*hubClient.Client)
 	poolSubkey := make(map[string]string)
 	rewardAddrs := make(map[string]types.AccAddress)
+	chainId := ""
 	// pool clients
 	for poolName, subKeyName := range option.PoolNameSubKey {
 		poolInfo, err := key.Key(poolName)
@@ -129,6 +132,9 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		done()
 		if poolClient.GetDenom() != leastBond.Denom {
 			return nil, fmt.Errorf("leastBond denom: %s not equal poolClient's denom: %s", leastBond.Denom, poolClient.GetDenom())
+		}
+		if chainId == "" {
+			chainId = poolClient.Ctx().ChainID
 		}
 	}
 
@@ -171,6 +177,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 			leastBond:  leastBond,
 			offset:     int64(option.Offset),
 		},
+		chainId:              chainId,
 		endpointList:         cfg.EndpointList,
 		accountPrefix:        option.AccountPrefix,
 		symbol:               core.RSymbol(cfg.Rsymbol),

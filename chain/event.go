@@ -61,6 +61,12 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 
 // when isRecover is true, bonder and signer must have value, bonder is a stafi address of user, signer is the signer of recover tx
 func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte, height int64, txHash string, event types.StringEvent, isRecover bool, bonder, signer string) error {
+	//check height of cosmoshub-4, old tx shouldn't be dealed
+	if l.conn.chainId == "cosmoshub-4" && height < 11665685 {
+		l.log.Warn("find old tx, shouldn't be dealed", "txHash", txHash, "event", event, "height", height)
+		return nil
+	}
+
 	switch {
 	case event.Type == xBankTypes.EventTypeTransfer:
 		// not support multisend now
