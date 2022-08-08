@@ -134,17 +134,23 @@ func (c *Client) GenMultiSigRawDelegateTxWithMemo(delAddr types.AccAddress, valA
 func (c *Client) GenDelegateMsgs(delAddr types.AccAddress, valAddrs []types.ValAddress, totalAmount types.Coin) ([]types.Msg, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
-
-	if len(valAddrs) == 0 {
+	valAddrsLen := len(valAddrs)
+	if valAddrsLen == 0 {
 		return nil, errors.New("no valAddrs")
 	}
 	if totalAmount.IsZero() {
 		return nil, errors.New("amount is zero")
 	}
-	willUseAmount := totalAmount.Amount.Quo(types.NewInt(int64(len(valAddrs))))
+	averageUseAmount := totalAmount.Amount.Quo(types.NewInt(int64(valAddrsLen)))
 
 	msgs := make([]types.Msg, 0)
-	for _, valAddr := range valAddrs {
+	for i, valAddr := range valAddrs {
+		willUseAmount := averageUseAmount
+
+		if valAddrsLen > 1 && i == valAddrsLen-1 {
+			willUseAmount = totalAmount.Amount.Sub(averageUseAmount.Mul(types.NewInt(int64(i))))
+		}
+
 		msg := xStakingTypes.NewMsgDelegate(delAddr, valAddr, types.NewCoin(totalAmount.Denom, willUseAmount))
 		msgs = append(msgs, msg)
 	}

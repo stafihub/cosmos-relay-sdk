@@ -308,7 +308,12 @@ func (c *Connection) GetPoolTargetValidators(poolAddrStr string) ([]types.ValAdd
 	c.poolTargetMutex.RLock()
 	defer c.poolTargetMutex.RUnlock()
 
+	// deterministic vals
 	if vals, exist := c.poolTargetValidators[poolAddrStr]; exist {
+		sort.SliceStable(vals, func(i, j int) bool {
+			return bytes.Compare(vals[i].Bytes(), vals[j].Bytes()) >= 0
+		})
+
 		return vals, nil
 	}
 	return nil, fmt.Errorf("target validators of this pool: %s not exist", poolAddrStr)
