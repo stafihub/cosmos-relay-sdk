@@ -14,13 +14,13 @@ import (
 
 // handle bondReportedEvent from stafihub
 // 1 query reward on last withdraw tx  height,
-//   1) if no reward, just send active report to stafihub
-//   2) if has reward
-//     1) gen delegate unsigned tx
-//     2) sign it with subKey
-//     3) send signature to stafihub
-//     4) wait until signature enough and send tx to cosmoshub
-//     5) active report to stafihub
+//  1. if no reward, just send active report to stafihub
+//  2. if has reward
+//  1. gen delegate unsigned tx
+//  2. sign it with subKey
+//  3. send signature to stafihub
+//  4. wait until signature enough and send tx to cosmoshub
+//  5. active report to stafihub
 func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	h.log.Info("handleBondReportedEvent", "m", m)
 	eventBondReported, ok := m.Content.(core.EventBondReported)
@@ -328,13 +328,15 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	if err != nil {
 		return err
 	}
+
+	factor := uint32(1)
 	interchainTx, err = stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
 		stafiHubXLedgerTypes.TxTypeDealBondReported,
-		0,
+		factor,
 		msgs)
 	if err != nil {
 		return err
@@ -344,7 +346,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
 		TxType: stafiHubXLedgerTypes.TxTypeDealBondReported,
-		Factor: 0,
+		Factor: factor,
 		Msgs:   msgs,
 	}
 

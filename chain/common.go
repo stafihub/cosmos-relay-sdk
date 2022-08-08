@@ -116,10 +116,10 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 	return append(hash[:], index)
 }
 
-//ensue every validator claim reward
-//if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
-//if bond > unbond: gen delegate tx
-//if bond < unbond: gen undelegate+withdraw tx
+// ensue every validator claim reward
+// if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
+// if bond > unbond: gen delegate tx
+// if bond < unbond: gen undelegate+withdraw tx
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedType int, err error) {
 
@@ -303,10 +303,10 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 	}
 }
 
-//ensue every validator claim reward
-//if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
-//if bond > unbond: gen delegate tx
-//if bond < unbond: gen undelegate+withdraw tx
+// ensue every validator claim reward
+// if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
+// if bond > unbond: gen delegate tx
+// if bond < unbond: gen undelegate+withdraw tx
 func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress) (msgs []types.Msg, unSignedType int, err error) {
 
@@ -346,7 +346,6 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 		}
 
 		val := bond.Sub(bond, unbond)
-		val = val.Div(val, big.NewInt(int64(valAddrsLen)))
 		msgs, err = client.GenDelegateMsgs(
 			poolAddr,
 			valAddrs,
@@ -487,10 +486,10 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 	}
 }
 
-//Notice: delegate/undelegate/withdraw operates will withdraw all reward
-//all delegations had withdraw all reward in eraUpdatedEvent handler
-//(0)if rewardAmount of  height == 0, hubClient.ErrNoMsgs
-//(1)else gen delegate tx
+// Notice: delegate/undelegate/withdraw operates will withdraw all reward
+// all delegations had withdraw all reward in eraUpdatedEvent handler
+// (0)if rewardAmount of  height == 0, hubClient.ErrNoMsgs
+// (1)else gen delegate tx
 func GetDelegateRewardUnsignedTxWithReward(client *hubClient.Client, poolAddr types.AccAddress, height int64,
 	rewards map[string]types.Coin, memo string) ([]byte, *types.Int, error) {
 
