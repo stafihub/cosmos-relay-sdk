@@ -28,7 +28,7 @@ const waitTime = time.Second * 2
 
 var ErrNoTxIncludeWithdraw = fmt.Errorf("no tx include withdraw")
 
-//no 0x prefix
+// no 0x prefix
 func (c *Client) QueryTxByHash(hashHexStr string) (*types.TxResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
@@ -581,6 +581,9 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 	if block.Block.Header.Time.Unix() > targetTimestamp {
 		afterBlockNumber = block.Block.Height
 		for {
+			if afterBlockNumber <= 2 {
+				return 1, nil
+			}
 			block, err := c.QueryBlock(afterBlockNumber - 1)
 			if err != nil {
 				return 0, err
@@ -615,7 +618,7 @@ func (c *Client) Retry(f func() (interface{}, error)) (interface{}, error) {
 	return c.retry(f)
 }
 
-//only retry func when return connection err here
+// only retry func when return connection err here
 func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 	var err error
 	var result interface{}
