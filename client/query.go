@@ -625,6 +625,9 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 	for i := 0; i < retryLimit; i++ {
 		result, err = f()
 		if err != nil {
+			if i%5 == 0 {
+				fmt.Println("retry with err: ", err)
+			}
 			// connection err case
 			if isConnectionError(err) {
 				c.ChangeEndpoint()
