@@ -16,7 +16,7 @@ import (
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
-//no 0x prefix
+// no 0x prefix
 func (c *Client) QueryTxByHashNoLock(hashHexStr string) (*types.TxResponse, error) {
 	cc, err := c.retry(func() (interface{}, error) {
 		return xAuthTx.QueryTx(c.Ctx(), hashHexStr)

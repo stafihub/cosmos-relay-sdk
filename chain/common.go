@@ -974,13 +974,15 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	}
 }
 
-func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
+func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHubXLedgerTypes.InterchainTxStatus, error) {
 	retry := 0
+	var err error
+	var status stafiHubXLedgerTypes.InterchainTxStatus
 	for {
 		if retry > BlockRetryLimit {
-			return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("mustGetInterchainTxStatusFromStafiHub reach retry limit, propId: %s", propId)
+			return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("mustGetInterchainTxStatusFromStafiHub reach retry limit, propId: %s, err: %s", propId, err)
 		}
-		status, err := h.getInterchainTxStatusFromStafiHub(propId)
+		status, err = h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
 			retry++
 			h.log.Debug("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
@@ -989,6 +991,7 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (s stafiH
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
 			retry++
+			err = fmt.Errorf("status not match, status: %s", status)
 			h.log.Debug("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue

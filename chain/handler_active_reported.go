@@ -14,8 +14,9 @@ import (
 
 // handle activeReportedEvent from stafihub
 // 1
-//   1) if no transfer info, just transfer report to stafihub
-//   2) has transfer info, gen transfer unsigned tx
+//  1. if no transfer info, just transfer report to stafihub
+//  2. has transfer info, gen transfer unsigned tx
+//
 // 2 sign it with subKey
 // 3 send signature to stafihub
 // 4 wait until signature enough and send tx to cosmoshub

@@ -38,7 +38,7 @@ func (h *Handler) start() error {
 	return nil
 }
 
-//resolve msg from other chains
+// resolve msg from other chains
 func (h *Handler) HandleMessage(m *core.Message) {
 	h.queueMessage(m)
 }
@@ -63,7 +63,7 @@ func (h *Handler) msgHandler() {
 	}
 }
 
-//resolve msg from other chains
+// resolve msg from other chains
 func (h *Handler) handleMessage(m *core.Message) error {
 	switch m.Reason {
 	case core.ReasonEraPoolUpdatedEvent:

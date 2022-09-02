@@ -625,9 +625,7 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 	for i := 0; i < retryLimit; i++ {
 		result, err = f()
 		if err != nil {
-			if i%5 == 0 {
-				fmt.Println("retry with err: ", err)
-			}
+			fmt.Printf("retry with endpoint index: %d err: %s\n", c.CurrentEndpointIndex(), err)
 			// connection err case
 			if isConnectionError(err) {
 				c.ChangeEndpoint()
@@ -639,25 +637,15 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 				for j := 0; j < len(c.rpcClientList)*2; j++ {
 					c.ChangeEndpoint()
 
-					subResult, subErr := f()
-					if subErr != nil {
-						// filter connection err
-						if isConnectionError(subErr) {
-							continue
-						}
-
-						result = subResult
-						err = subErr
+					result, err = f()
+					if err != nil {
+						fmt.Printf("retry with endpoint index: %d subErr: %s\n", c.CurrentEndpointIndex(), err)
 						continue
+					} else {
+						break
 					}
-
-					result = subResult
-					err = subErr
-					// if ok when using this rpc, just return
-					return result, err
 				}
-
-				// if ok when using this rpc, just return
+				// return
 				return result, err
 			}
 		}
@@ -703,11 +691,12 @@ func isConnectionError(err error) bool {
 		}
 		// server goroutine panic
 		if strings.Contains(err.Error(), "recovered") {
-			fmt.Println(err)
 			return true
 		}
 		if strings.Contains(err.Error(), "panic") {
-			fmt.Println(err)
+			return true
+		}
+		if strings.Contains(err.Error(), "Internal server error") {
 			return true
 		}
 	}

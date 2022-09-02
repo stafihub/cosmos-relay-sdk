@@ -195,3 +195,7 @@ func (c *Client) ChangeEndpoint() {
 	c.clientCtx = c.clientCtx.WithClient(c.rpcClientList[willUseIndex])
 	c.rpcClientIndex = willUseIndex
 }
+
+func (c *Client) CurrentEndpointIndex() int {
+	return c.rpcClientIndex
+}

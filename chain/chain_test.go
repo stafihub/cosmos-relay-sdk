@@ -109,13 +109,14 @@ func TestGetLatestRedelegateTx(t *testing.T) {
 
 func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
-	if err != nil {
-		panic(err)
-	}
-	tx, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-0")
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(height, tx.TxHash)
+	_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(height)
 }

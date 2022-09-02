@@ -13,9 +13,10 @@ import (
 
 // handle eraPoolUpdated event
 // 1
-//   1) bond>unbond, gen bond multiSig unsigned tx
-//   2) bond<unbond, gen unbond+withdraw multiSig unsigned tx
-//   3) bond==unbond, if no delegation before, just sendbondreport, else gen withdraw multiSig unsigned tx
+//  1. bond>unbond, gen bond multiSig unsigned tx
+//  2. bond<unbond, gen unbond+withdraw multiSig unsigned tx
+//  3. bond==unbond, if no delegation before, just sendbondreport, else gen withdraw multiSig unsigned tx
+//
 // 2 sign it with subKey
 // 3 send signature to stafihub
 // 4 wait until signature enough, then send tx to cosmoshub

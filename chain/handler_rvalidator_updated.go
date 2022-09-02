@@ -11,12 +11,12 @@ import (
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
-//process validatorUpdated
-//1 gen redelegate unsigned tx and cache it
-//2 sign it with subKey
-//3 send signature to stafi
-//4 wait until signature enough and send tx to cosmoshub
-//5 rvalidator update report to stafihub
+// process validatorUpdated
+// 1 gen redelegate unsigned tx and cache it
+// 2 sign it with subKey
+// 3 send signature to stafi
+// 4 wait until signature enough and send tx to cosmoshub
+// 5 rvalidator update report to stafihub
 func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	h.log.Info("handleRValidatorUpdatedEvent", "m", m)
 	eventRValidatorUpdated, ok := m.Content.(core.EventRValidatorUpdated)
