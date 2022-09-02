@@ -632,22 +632,32 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 
 				time.Sleep(waitTime)
 				continue
-			} else {
-				// business err case or other err case not captured
-				for j := 0; j < len(c.rpcClientList)*2; j++ {
-					c.ChangeEndpoint()
+			}
+			// business err case or other err case not captured
+			for j := 0; j < len(c.rpcClientList)*2; j++ {
+				c.ChangeEndpoint()
+				subResult, subErr := f()
 
-					result, err = f()
-					if err != nil {
-						fmt.Printf("retry with endpoint index: %d subErr: %s\n", c.CurrentEndpointIndex(), err)
+				if subErr != nil {
+					fmt.Printf("retry with endpoint index: %d subErr: %s\n", c.CurrentEndpointIndex(), err)
+					// filter connection err
+					if isConnectionError(subErr) {
 						continue
-					} else {
-						break
 					}
+
+					result = subResult
+					err = subErr
+					continue
 				}
-				// return
+
+				result = subResult
+				err = subErr
+				// if ok when using this rpc, just return
 				return result, err
 			}
+			// return
+			return result, err
+
 		}
 		// no err, just return
 		return result, err
