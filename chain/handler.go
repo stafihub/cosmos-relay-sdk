@@ -122,7 +122,7 @@ func (h *Handler) handleInitPoolEvent(m *core.Message) error {
 		return fmt.Errorf("EventInitPool cast failed, %+v", m)
 	}
 
-	return h.conn.AddIcaPool(eventInitPool.PoolAddress, eventInitPool.WithdrawalAddress, eventInitPool.CtrlChannelId, eventInitPool.Validators)
+	return h.conn.AddIcaPool(eventInitPool.PoolAddress, eventInitPool.WithdrawalAddress, eventInitPool.HostChannelId, eventInitPool.Validators)
 }
 
 // support multisig/ica pool

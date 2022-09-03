@@ -109,12 +109,13 @@ func TestGetLatestRedelegateTx(t *testing.T) {
 
 func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc4.stafi.io:443"})
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://public-rpc1.stafihub.io:443"})
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-1")
+	_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
 	if err != nil {
 		t.Fatal(err)
 	}

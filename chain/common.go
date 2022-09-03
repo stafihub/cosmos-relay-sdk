@@ -597,7 +597,7 @@ func combineSameAddress(outPuts []xBankTypes.Output) []xBankTypes.Output {
 	}
 	//sort outPuts for the same rawTx from different relayer
 	sort.SliceStable(retOutputs, func(i, j int) bool {
-		return bytes.Compare([]byte(outPuts[i].Address), []byte(outPuts[j].Address)) < 0
+		return bytes.Compare([]byte(retOutputs[i].Address), []byte(retOutputs[j].Address)) < 0
 	})
 	return retOutputs
 }
@@ -739,11 +739,12 @@ func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.Tx
 }
 
 // used for ica pool
-func GetLatestDealEraUpdatedTx(c *hubClient.Client, srcChannelId string) (*types.TxResponse, int64, error) {
+// should filter with dst channel, because the dst channel is unique on dst chain.
+func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types.TxResponse, int64, error) {
 	txs, err := c.GetTxs(
 		[]string{
-			fmt.Sprintf("recv_packet.packet_src_channel='%s'", srcChannelId),
-		}, 1, 3, "desc")
+			fmt.Sprintf("recv_packet.packet_dst_channel='%s'", dstChannelId),
+		}, 1, 5, "desc")
 	if err != nil {
 		return nil, 0, err
 	}

@@ -223,18 +223,18 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 
 	height, err := poolClient.GetHeightByEra(snap.Era, h.conn.eraSeconds, h.conn.offset)
 	if err != nil {
-		h.log.Error("handleEraPoolUpdatedEvent GetHeightByEra failed",
+		h.log.Error("dealIcaPoolBondReportedEvent GetHeightByEra failed",
 			"pool address", poolAddressStr,
 			"era", snap.Era,
 			"err", err)
 		return err
 	}
-	ctrlChannelId, err := h.conn.GetIcaPoolCtrlChannelId(poolAddressStr)
+	hostChannelId, err := h.conn.GetIcaPoolHostChannelId(poolAddressStr)
 	if err != nil {
 		return err
 	}
 
-	_, dealEraHeight, err := GetLatestDealEraUpdatedTx(poolClient, ctrlChannelId)
+	_, dealEraHeight, err := GetLatestDealEraUpdatedTx(poolClient, hostChannelId)
 	if err != nil {
 		h.log.Error("GetLatestDealEraUpdatedTx failed",
 			"pool address", poolAddressStr,
@@ -246,6 +246,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	if dealEraHeight > height {
 		height = dealEraHeight + 1
 	}
+	h.log.Info("GetLatestDealEraUpdatedTx", "dealEraHeight", dealEraHeight)
 
 	rewardBalanceRes, err := poolClient.QueryBalance(rewardAddress, h.conn.leastBond.Denom, height)
 	if err != nil {

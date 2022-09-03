@@ -34,7 +34,7 @@ type Connection struct {
 
 	icaPoolClients     map[string]*hubClient.Client // map[ica pool address]subClient
 	icaPoolRewardAddr  map[string]types.AccAddress  // map[ica pool address]rewardAddress
-	icaPoolCtrlChannel map[string]string            // map[ica pool address]srcChannelId
+	icaPoolHostChannel map[string]string            // map[ica pool address]hostChannelId
 
 	poolClientMutex sync.RWMutex
 
@@ -186,7 +186,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		poolThreshold:        option.PoolAddressThreshold,
 		icaPoolClients:       icaPoolClients,
 		icaPoolRewardAddr:    rewardAddrs,
-		icaPoolCtrlChannel:   option.IcaPoolCtrlChannel,
+		icaPoolHostChannel:   option.IcaPoolHostChannel,
 		poolTargetValidators: valsMap,
 		log:                  log,
 	}
@@ -240,7 +240,7 @@ func (c *Connection) RemovePoolClient(poolAddrStr string) {
 	if _, exist := c.icaPoolClients[poolAddrStr]; exist {
 		delete(c.icaPoolClients, poolAddrStr)
 		delete(c.icaPoolRewardAddr, poolAddrStr)
-		delete(c.icaPoolCtrlChannel, poolAddrStr)
+		delete(c.icaPoolHostChannel, poolAddrStr)
 		return
 	}
 }
@@ -252,7 +252,7 @@ func (c *Connection) RemovePoolTarget(poolAddrStr string) {
 	delete(c.poolTargetValidators, poolAddrStr)
 }
 
-func (c *Connection) AddIcaPool(poolAddrStr, withdrawalAddr, ctrlChannelId string, targetValidators []string) error {
+func (c *Connection) AddIcaPool(poolAddrStr, withdrawalAddr, hostChannelId string, targetValidators []string) error {
 	c.poolClientMutex.Lock()
 	defer c.poolClientMutex.Unlock()
 
@@ -275,7 +275,7 @@ func (c *Connection) AddIcaPool(poolAddrStr, withdrawalAddr, ctrlChannelId strin
 	done()
 
 	c.icaPoolRewardAddr[poolAddrStr] = withdrawalAddress
-	c.icaPoolCtrlChannel[poolAddrStr] = ctrlChannelId
+	c.icaPoolHostChannel[poolAddrStr] = hostChannelId
 
 	done = core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	for _, targetVal := range targetValidators {
@@ -396,8 +396,8 @@ func (c *Connection) GetIcaPoolRewardAddress(poolAddrStr string) (types.AccAddre
 	return types.AccAddress{}, fmt.Errorf("reward address of this pool: %s not exist", poolAddrStr)
 }
 
-func (c *Connection) GetIcaPoolCtrlChannelId(poolAddrStr string) (string, error) {
-	if value, exist := c.icaPoolCtrlChannel[poolAddrStr]; exist {
+func (c *Connection) GetIcaPoolHostChannelId(poolAddrStr string) (string, error) {
+	if value, exist := c.icaPoolHostChannel[poolAddrStr]; exist {
 		return value, nil
 	}
 	return "", fmt.Errorf("srcChannelId of this pool: %s not exist", poolAddrStr)
