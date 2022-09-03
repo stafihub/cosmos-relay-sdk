@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"sort"
+
 	// "strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
+	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -34,7 +36,7 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://test-chihuahua-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982443", "https://cosmos-rpc1.stafi.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982443", "https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
@@ -100,7 +102,9 @@ func TestClient_QueryTxByHash(t *testing.T) {
 	for {
 
 		res, err := client.QueryTxByHash("e9b912361f4c3aa4de05651f2b4b9a63360707e597bf0f9dddff631e73aba27b")
-		assert.NoError(t, err)
+		if err!=nil{
+			t.Fatal(err)
+		}
 		t.Log(res.Code)
 
 		curBlock, err := client.GetCurrentBlockHeight()

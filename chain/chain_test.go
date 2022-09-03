@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stafihub/cosmos-relay-sdk/chain"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
@@ -79,7 +80,7 @@ func TestChainInitialize(t *testing.T) {
 
 func TestGetRewardToBeDelegated(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client"))
 	if err != nil {
 		panic(err)
 	}
@@ -96,7 +97,7 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 
 func TestGetLatestRedelegateTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("cosmos"))
 	if err != nil {
 		panic(err)
 	}
@@ -109,15 +110,20 @@ func TestGetLatestRedelegateTx(t *testing.T) {
 
 func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc4.stafi.io:443"})
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc4.stafi.io:443"}, log.NewLog("client"))
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://public-rpc1.stafihub.io:443"})
-	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"})
+	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"}, log.NewLog("client"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
-	if err != nil {
-		t.Fatal(err)
+	for {
+		go func() {
+			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Log(height)
+		}()
+		time.Sleep(time.Millisecond * 10)
 	}
-	t.Log(height)
 }

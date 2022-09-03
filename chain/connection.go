@@ -118,7 +118,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 		if err != nil {
 			return nil, err
 		}
-		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, option.AccountPrefix, cfg.EndpointList)
+		poolClient, err := hubClient.NewClient(key, poolName, option.GasPrice, option.AccountPrefix, cfg.EndpointList, log)
 		if err != nil {
 			return nil, err
 		}
@@ -140,7 +140,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 
 	// ica pool clients
 	for delegationAddr, withdrawalAddr := range option.IcaPoolWithdrawalAddr {
-		poolClient, err := hubClient.NewClient(nil, "", "", option.AccountPrefix, cfg.EndpointList)
+		poolClient, err := hubClient.NewClient(nil, "", "", option.AccountPrefix, cfg.EndpointList, log)
 		if err != nil {
 			return nil, err
 		}
@@ -260,7 +260,7 @@ func (c *Connection) AddIcaPool(poolAddrStr, withdrawalAddr, hostChannelId strin
 		return nil
 	}
 
-	poolClient, err := hubClient.NewClient(nil, "", "", c.accountPrefix, c.endpointList)
+	poolClient, err := hubClient.NewClient(nil, "", "", c.accountPrefix, c.endpointList, c.log)
 	if err != nil {
 		return err
 	}

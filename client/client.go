@@ -12,6 +12,7 @@ import (
 	cryptoTypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	"github.com/stafihub/rtoken-relay-core/common/log"
 	rpcClient "github.com/tendermint/tendermint/rpc/client"
 	rpcHttp "github.com/tendermint/tendermint/rpc/client/http"
 )
@@ -26,6 +27,7 @@ type Client struct {
 	accountPrefix       string
 	rpcClientIndex      int
 	changeEndpointMutex sync.Mutex
+	logger              log.Logger
 }
 
 func (c *Client) GetAccountPrefix() string {
@@ -35,15 +37,19 @@ func (c *Client) GetAccountPrefix() string {
 func (c *Client) SetAccountPrefix(prefix string) {
 	c.accountPrefix = prefix
 }
-func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endPointList []string) (*Client, error) {
+func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endPointList []string, logger log.Logger) (*Client, error) {
 	if len(endPointList) == 0 {
 		return nil, fmt.Errorf("no endpoint")
+	}
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
 	}
 
 	encodingConfig := MakeEncodingConfig()
 	retClient := &Client{
 		accountPrefix:  accountPrefix,
 		rpcClientIndex: 0,
+		logger:         logger,
 	}
 
 	for _, endPoint := range endPointList {
