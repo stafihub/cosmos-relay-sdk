@@ -961,21 +961,16 @@ func bytesArrayToStr(bts [][]byte) string {
 	return ret
 }
 
+// will wait until signature enough
 func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature, threshold uint32) (signatures [][]byte, err error) {
-	retry := 0
 	for {
-		if retry > BlockRetryLimit {
-			return nil, fmt.Errorf("getSignatureFromStafiHub reach retry limit, param: %v", param)
-		}
 		sigs, err := h.getSignatureFromStafiHub(param)
 		if err != nil {
-			retry++
 			h.log.Debug("getSignatureFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if len(sigs) < int(threshold) {
-			retry++
 			h.log.Debug("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
 			time.Sleep(BlockRetryInterval)
 			continue
@@ -984,23 +979,18 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	}
 }
 
+// will wait until interchain tx status ready
 func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHubXLedgerTypes.InterchainTxStatus, error) {
-	retry := 0
 	var err error
 	var status stafiHubXLedgerTypes.InterchainTxStatus
 	for {
-		if retry > BlockRetryLimit {
-			return stafiHubXLedgerTypes.InterchainTxStatusInit, fmt.Errorf("mustGetInterchainTxStatusFromStafiHub reach retry limit, propId: %s, err: %s", propId, err)
-		}
 		status, err = h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
-			retry++
 			h.log.Debug("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
-			retry++
 			err = fmt.Errorf("status not match, status: %s", status)
 			h.log.Debug("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
