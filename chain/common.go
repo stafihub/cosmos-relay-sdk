@@ -288,6 +288,11 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 				withdrawVals = append(withdrawVals, valAddr)
 			}
 		}
+
+		sort.Slice(withdrawVals, func(i int, j int) bool {
+			return bytes.Compare(withdrawVals[i].Bytes(), withdrawVals[j].Bytes()) > 0
+		})
+
 		done()
 
 		unSignedTx, err = client.GenMultiSigRawUnDelegateWithdrawTxWithMemo(
@@ -472,6 +477,10 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 				withdrawVals = append(withdrawVals, valAddr)
 			}
 		}
+
+		sort.Slice(withdrawVals, func(i int, j int) bool {
+			return bytes.Compare(withdrawVals[i].Bytes(), withdrawVals[j].Bytes()) > 0
+		})
 		done()
 
 		msgs, err = client.GenUnDelegateWithdrawMsgs(
