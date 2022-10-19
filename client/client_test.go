@@ -117,12 +117,27 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 func TestClient_GetEvent(t *testing.T) {
 	initClient()
-	tx, err := client.GetBlockTxsWithParseErrSkip(11845451)
+	// tx, err := client.GetBlockTxsWithParseErrSkip(11845451)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// t.Log(tx)
+
+	blockResults, err := client.GetBlockResults(12415487)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(tx)
 
+	for i, tx := range blockResults.TxsResults {
+		if i != 5 {
+			continue
+		}
+		t.Log("----------", tx.Log)
+		for _, e := range tx.Events {
+			evt := types.StringifyEvent(e)
+			t.Log(evt.Type, evt.Attributes)
+		}
+	}
 	// txHash, height, memo, err := client.GetLastTxIncludeWithdraw("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
 
 	// if err != nil {

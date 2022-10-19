@@ -313,7 +313,8 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	if err != nil {
 		return err
 	}
-	if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
+	// skip this proId 9520a86df8db89d21e7a11b617114ebdcb825b1544914ab0bc1d4bb709795701 for dragonberry upgrade
+	if !strings.EqualFold(interchainTx.PropId, "9520a86df8db89d21e7a11b617114ebdcb825b1544914ab0bc1d4bb709795701") && status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
 		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 
