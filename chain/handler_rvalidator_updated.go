@@ -68,9 +68,13 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 
 	//  fix cycleNumber when rm rvalidator
 	cycleNumberUsedForGetHeight := eventRValidatorUpdated.CycleNumber
-	if eventRValidatorUpdated.CycleVersion == 0 && eventRValidatorUpdated.CycleNumber == 1 {
-		cycleNumberUsedForGetHeight = 2778794
+	switch eventRValidatorUpdated.Denom {
+	case "uratom":
+		if eventRValidatorUpdated.CycleVersion == 0 && eventRValidatorUpdated.CycleNumber == 1 {
+			cycleNumberUsedForGetHeight = 2778794
+		}
 	}
+
 	// got target height
 	height, err := poolClient.GetHeightByEra(uint32(cycleNumberUsedForGetHeight), int64(eventRValidatorUpdated.CycleSeconds), 0)
 	if err != nil {
