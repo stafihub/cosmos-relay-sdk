@@ -833,6 +833,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeDealEraUpdated: //bond/unbond/claim
 			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
+
 		case stafiHubXLedgerTypes.TxTypeDealBondReported: //delegate reward
 			total := types.NewInt(0)
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
@@ -849,10 +850,11 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 				}
 			}
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
+
 		case stafiHubXLedgerTypes.TxTypeDealActiveReported: //transfer unbond token to user
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
-		case stafiHubXLedgerTypes.TxTypeDealValidatorUpdated: // redelegate
 
+		case stafiHubXLedgerTypes.TxTypeDealValidatorUpdated: // redelegate
 			// update target validator when redelegate success
 			h.conn.ReplacePoolTargetValidator(poolAddressStr, wrappedUnSignedTx.OldValidator, wrappedUnSignedTx.NewValidator)
 			return h.sendRValidatorUpdateReportReportMsg(

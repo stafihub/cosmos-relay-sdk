@@ -12,9 +12,12 @@ import (
 	"time"
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
+	"github.com/tendermint/tendermint/crypto"
+
 	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
+	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
@@ -33,10 +36,12 @@ func initClient() {
 
 	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc-cosmoshub.keplr.app:443"},log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://test-chihuahua-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982443", "https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
@@ -62,7 +67,7 @@ func TestQueryBlock(t *testing.T) {
 
 func TestClient_GetHeightByEra(t *testing.T) {
 	initClient()
-	height, err := client.GetHeightByEra(149622, 11100, 0)
+	height, err := client.GetHeightByEra(2778794, 600, 0)
 	assert.NoError(t, err)
 	t.Log(height)
 }
@@ -99,20 +104,25 @@ func TestQuerySignInfo(t *testing.T) {
 func TestClient_QueryTxByHash(t *testing.T) {
 	initClient()
 
-	for {
-
-		res, err := client.QueryTxByHash("e9b912361f4c3aa4de05651f2b4b9a63360707e597bf0f9dddff631e73aba27b")
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Log(res.Code)
-
-		curBlock, err := client.GetCurrentBlockHeight()
-		assert.NoError(t, err)
-		t.Log(curBlock)
-		time.Sleep(1 * time.Second)
-		t.Log("\n")
+	res, err := client.QueryTxByHash("bc6c390ab31c647dda0309a98aae35d8734f4f14f15bde521e3c7ec184a4b177")
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Log(res.Code)
+	tx := res.GetTx()
+	sig, ok := tx.(*txtypes.Tx)
+	if !ok {
+		t.Fatal(ok)
+	}
+
+	t.Log(sig.GetSignatures())
+
+	curBlock, err := client.GetCurrentBlockHeight()
+	assert.NoError(t, err)
+	t.Log(curBlock)
+	time.Sleep(1 * time.Second)
+	t.Log("\n")
+
 }
 
 func TestClient_GetEvent(t *testing.T) {
@@ -122,6 +132,7 @@ func TestClient_GetEvent(t *testing.T) {
 	// 	t.Fatal(err)
 	// }
 	// t.Log(tx)
+	t.Log(types.AccAddress(crypto.AddressHash([]byte("distribution"))).String())
 
 	blockResults, err := client.GetBlockResults(12415487)
 	if err != nil {
@@ -388,7 +399,7 @@ func TestSort(t *testing.T) {
 
 func TestGetValidators(t *testing.T) {
 	initClient()
-	res, err := client.QueryValidators(10776032)
+	res, err := client.QueryValidators(12510587)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -398,7 +409,8 @@ func TestGetValidators(t *testing.T) {
 
 func TestGetBlockResults(t *testing.T) {
 	initClient()
-	result, err := client.GetBlockResults(1325545)
+	t.Log(types.AccAddress(crypto.AddressHash([]byte("distribution"))).String())
+	result, err := client.GetBlockResults(12510587)
 	if err != nil {
 		t.Fatal(err)
 	}

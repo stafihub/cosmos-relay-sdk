@@ -23,6 +23,9 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	if !ok {
 		return fmt.Errorf("EventRValidatorUpdatedEvent cast failed, %+v", m)
 	}
+	if eventRValidatorUpdated.CycleSeconds == 0 {
+		return fmt.Errorf("handleRValidatorUpdatedEvent eventRValidatorUpdated.CycleSeconds is zero")
+	}
 
 	poolClient, isIcaPool, err := h.conn.GetPoolClient(eventRValidatorUpdated.PoolAddress)
 	if err != nil {
@@ -63,8 +66,13 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	}
 	done()
 
+	//  fix cycleNumber when rm rvalidator
+	cycleNumberUsedForGetHeight := eventRValidatorUpdated.CycleNumber
+	if eventRValidatorUpdated.CycleVersion == 0 && eventRValidatorUpdated.CycleNumber == 1 {
+		cycleNumberUsedForGetHeight = 2778794
+	}
 	// got target height
-	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
+	height, err := poolClient.GetHeightByEra(uint32(cycleNumberUsedForGetHeight), int64(eventRValidatorUpdated.CycleSeconds), 0)
 	if err != nil {
 		return err
 	}
