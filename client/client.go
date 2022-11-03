@@ -53,11 +53,11 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endP
 	}
 
 	for _, endPoint := range endPointList {
-		rpcClient, err := rpcHttp.New(endPoint, "/websocket")
+		rClient, err := rpcHttp.New(endPoint, "/websocket")
 		if err != nil {
 			return nil, err
 		}
-		retClient.rpcClientList = append(retClient.rpcClientList, rpcClient)
+		retClient.rpcClientList = append(retClient.rpcClientList, rClient)
 	}
 
 	if len(fromName) != 0 {
@@ -75,9 +75,9 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endP
 			WithAccountRetriever(xAuthTypes.AccountRetriever{}).
 			WithBroadcastMode(flags.BroadcastBlock).
 			WithClient(retClient.rpcClientList[0]).
-			WithSkipConfirmation(true).         //skip password confirm
-			WithFromName(fromName).             //keyBase need FromName to find key info
-			WithFromAddress(info.GetAddress()). //accountRetriever need FromAddress
+			WithSkipConfirmation(true).         // skip password confirm
+			WithFromName(fromName).             // keyBase need FromName to find key info
+			WithFromAddress(info.GetAddress()). // accountRetriever need FromAddress
 			WithKeyring(k)
 
 		retClient.clientCtx = initClientCtx
@@ -112,7 +112,7 @@ func NewClient(k keyring.Keyring, fromName, gasPrice, accountPrefix string, endP
 			WithAccountRetriever(xAuthTypes.AccountRetriever{}).
 			WithBroadcastMode(flags.BroadcastBlock).
 			WithClient(retClient.rpcClientList[0]).
-			WithSkipConfirmation(true) //skip password confirm
+			WithSkipConfirmation(true) // skip password confirm
 
 		retClient.clientCtx = initClientCtx
 		bondedDenom, err := retClient.QueryBondedDenom()

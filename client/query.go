@@ -28,7 +28,7 @@ const waitTime = time.Second * 2
 
 var ErrNoTxIncludeWithdraw = fmt.Errorf("no tx include withdraw")
 
-// no 0x prefix
+// QueryTxByHash no 0x prefix
 func (c *Client) QueryTxByHash(hashHexStr string) (*types.TxResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
@@ -47,8 +47,8 @@ func (c *Client) QueryDelegation(delegatorAddr types.AccAddress, validatorAddr t
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xStakeTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
 		params := &xStakeTypes.QueryDelegationRequest{
 			DelegatorAddr: delegatorAddr.String(),
 			ValidatorAddr: validatorAddr.String(),
@@ -66,8 +66,8 @@ func (c *Client) QueryUnbondingDelegation(delegatorAddr types.AccAddress, valida
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xStakeTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
 		params := &xStakeTypes.QueryUnbondingDelegationRequest{
 			DelegatorAddr: delegatorAddr.String(),
 			ValidatorAddr: validatorAddr.String(),
@@ -85,8 +85,8 @@ func (c *Client) QueryDelegations(delegatorAddr types.AccAddress, height int64) 
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xStakeTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
 		params := &xStakeTypes.QueryDelegatorDelegationsRequest{
 			DelegatorAddr: delegatorAddr.String(),
 			Pagination:    &query.PageRequest{},
@@ -99,13 +99,28 @@ func (c *Client) QueryDelegations(delegatorAddr types.AccAddress, height int64) 
 	return cc.(*xStakeTypes.QueryDelegatorDelegationsResponse), nil
 }
 
+func (c *Client) QueryValidatorDelegations(params xStakeTypes.QueryValidatorDelegationsRequest, height int64) (*xStakeTypes.QueryValidatorDelegationsResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
+		return queryClient.ValidatorDelegations(context.Background(), &params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryValidatorDelegationsResponse), nil
+}
+
 func (c *Client) QueryReDelegations(delegatorAddr, src, dst string, height int64) (*xStakeTypes.QueryRedelegationsResponse, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xStakeTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
 		params := &xStakeTypes.QueryRedelegationsRequest{
 			DelegatorAddr:    delegatorAddr,
 			SrcValidatorAddr: src,
@@ -125,8 +140,8 @@ func (c *Client) QueryValidators(height int64) (*xStakeTypes.QueryValidatorsResp
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xStakeTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xStakeTypes.NewQueryClient(withHeight)
 		params := &xStakeTypes.QueryValidatorsRequest{
 			Pagination: &query.PageRequest{
 				Offset:     0,
@@ -148,8 +163,8 @@ func (c *Client) QueryDelegationRewards(delegatorAddr types.AccAddress, validato
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xDistriTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xDistriTypes.NewQueryClient(withHeight)
 		return queryClient.DelegationRewards(
 			context.Background(),
 			&xDistriTypes.QueryDelegationRewardsRequest{DelegatorAddress: delegatorAddr.String(), ValidatorAddress: validatorAddr.String()},
@@ -166,8 +181,8 @@ func (c *Client) QueryDelegationTotalRewards(delegatorAddr types.AccAddress, hei
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xDistriTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xDistriTypes.NewQueryClient(withHeight)
 		return queryClient.DelegationTotalRewards(
 			context.Background(),
 			&xDistriTypes.QueryDelegationTotalRewardsRequest{DelegatorAddress: delegatorAddr.String()},
@@ -308,8 +323,8 @@ func (c *Client) QueryBalance(addr types.AccAddress, denom string, height int64)
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		queryClient := xBankTypes.NewQueryClient(client)
+		withHeight := c.Ctx().WithHeight(height)
+		queryClient := xBankTypes.NewQueryClient(withHeight)
 		params := xBankTypes.NewQueryBalanceRequest(addr, denom)
 		return queryClient.Balance(context.Background(), params)
 	})
@@ -360,8 +375,8 @@ func (c *Client) GetAccount() (client.Account, error) {
 
 func (c *Client) getAccount(height int64, addr types.AccAddress) (client.Account, error) {
 	cc, err := c.retry(func() (interface{}, error) {
-		client := c.Ctx().WithHeight(height)
-		return client.AccountRetriever.GetAccount(c.Ctx(), addr)
+		withHeight := c.Ctx().WithHeight(height)
+		return withHeight.AccountRetriever.GetAccount(c.Ctx(), addr)
 	})
 	if err != nil {
 		return nil, err
@@ -398,7 +413,7 @@ func (c *Client) GetTxsWithParseErrSkip(events []string, page, limit int, orderB
 	return cc.(*types.SearchTxsResult), externalSkipCount, nil
 }
 
-// will skip txs that parse failed
+// GetBlockTxsWithParseErrSkip will skip txs that parse failed
 func (c *Client) GetBlockTxsWithParseErrSkip(height int64) ([]*types.TxResponse, error) {
 	// tendermint max limit 100
 	txs := make([]*types.TxResponse, 0)
@@ -509,6 +524,7 @@ func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string,
 }
 
 func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, error) {
+	start := time.Now().Unix()
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	defer done()
 
@@ -518,6 +534,7 @@ func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, erro
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("The GetBlockResults use time:", time.Now().Unix()-start)
 	return cc.(*ctypes.ResultBlockResults), nil
 }
 
@@ -654,17 +671,14 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 					continue
 				}
 
-				result = subResult
-				err = subErr
 				// if ok when using this rpc, just return
-				return result, err
+				return subResult, nil
 			}
-			// return
+			// return when all rpcs are tried
 			return result, err
-
 		}
 		// no err, just return
-		return result, err
+		return result, nil
 	}
 
 	return nil, fmt.Errorf("reach retry limit. err: %s", err)
