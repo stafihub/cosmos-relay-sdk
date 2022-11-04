@@ -72,6 +72,13 @@ func TestClient_GetHeightByEra(t *testing.T) {
 	t.Log(height)
 }
 
+func TestClient_GetHeightByTimestamp(t *testing.T) {
+	initClient()
+	height, err := client.GetHeightByTimestamp(1667557131)
+	assert.NoError(t, err)
+	t.Log(height)
+}
+
 func TestQuerySignInfo(t *testing.T) {
 	initClient()
 
