@@ -145,6 +145,9 @@ func TestClient_GetEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _,event:=range blockResults.BeginBlockEvents{
+		t.Log(types.StringifyEvent(event))
+	}
 
 	for i, tx := range blockResults.TxsResults {
 		if i != 5 {
@@ -155,6 +158,10 @@ func TestClient_GetEvent(t *testing.T) {
 			evt := types.StringifyEvent(e)
 			t.Log(evt.Type, evt.Attributes)
 		}
+	}
+
+	for _,event:=range blockResults.EndBlockEvents{
+		t.Log(types.StringifyEvent(event))
 	}
 	// txHash, height, memo, err := client.GetLastTxIncludeWithdraw("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
 
@@ -179,7 +186,13 @@ func TestClient_GetEvent(t *testing.T) {
 
 func TestGetTxs(t *testing.T) {
 	initClient()
-
+	rawTx := "0ae7010ae4010a2c2f73746166696875622e73746166696875622e6c65646765722e4d73674c6971756964697479556e626f6e6412b3010a2c73746166693176383730726b777a79716e61613274383779367873326168787573336a7a66766a61646679791241636f736d6f73316773746834367a35307732353670346b71333678717568347139306d666a713074346c6d3973636c6e367a75636736346570797175647a717a6d1a110a06757261746f6d120731303030303030222d636f736d6f733176383730726b777a79716e61613274383779367873326168787573336a7a6676666b6172737512660a500a460a1f2f636f736d6f732e63727970746f2e736563703235366b312e5075624b657912230a21027a8048f90cb2cbf59d40a66f5124aa378611a81e15789dcf76b6449bf14bfddf12040a02087f180612120a0c0a047566697312043333303610a88b0a1a4032dcf877c7d7ad9ef590fda6bbb13a7058041a656cef9d7cdc2a7d5c53ad60c058888b61362ccc8184bb553f53c72be7224d24ed908d28d6b8e2f1059d7254b6"
+	txBts, err := hex.DecodeString(rawTx)
+	txValue := txBts
+	_, err = client.GetTxConfig().TxDecoder()(txValue)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for page := 1; page < 40; page++ {
 		fmt.Println("page: ", page)
 		txs, err := client.GetTxs([]string{
@@ -192,8 +205,16 @@ func TestGetTxs(t *testing.T) {
 			fmt.Println("tx ------------->")
 			fmt.Println(tx.TxHash)
 			txValue := tx.Tx.Value
+			rawTx := "0ae7010ae4010a2c2f73746166696875622e73746166696875622e6c65646765722e4d73674c6971756964697479556e626f6e6412b3010a2c73746166693176383730726b777a79716e61613274383779367873326168787573336a7a66766a61646679791241636f736d6f73316773746834367a35307732353670346b71333678717568347139306d666a713074346c6d3973636c6e367a75636736346570797175647a717a6d1a110a06757261746f6d120731303030303030222d636f736d6f733176383730726b777a79716e61613274383779367873326168787573336a7a6676666b6172737512660a500a460a1f2f636f736d6f732e63727970746f2e736563703235366b312e5075624b657912230a21027a8048f90cb2cbf59d40a66f5124aa378611a81e15789dcf76b6449bf14bfddf12040a02087f180612120a0c0a047566697312043333303610a88b0a1a4032dcf877c7d7ad9ef590fda6bbb13a7058041a656cef9d7cdc2a7d5c53ad60c058888b61362ccc8184bb553f53c72be7224d24ed908d28d6b8e2f1059d7254b6"
+			txBts, err := hex.DecodeString(rawTx)
+			txValue = txBts
 			decodeTx, err := client.GetTxConfig().TxDecoder()(txValue)
 			if err != nil {
+				t.Fatal(err)
+			}
+			
+			err=decodeTx.ValidateBasic()
+			if err!=nil{
 				t.Fatal(err)
 			}
 
