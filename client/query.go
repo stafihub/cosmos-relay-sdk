@@ -560,6 +560,8 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 }
 
 func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
+	c.logger.Trace("GetHeightByTimestamp", "targetTimestamp", targetTimestamp)
+
 	blockNumber, timestamp, err := c.GetCurrentBLockAndTimestamp()
 	if err != nil {
 		return 0, err
@@ -611,6 +613,7 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 	if block.Block.Header.Time.Unix() > targetTimestamp {
 		afterBlockNumber = block.Block.Height
 		for {
+			c.logger.Trace("afterBlock", "block", afterBlockNumber)
 			if afterBlockNumber <= 2 {
 				return 1, nil
 			}
@@ -629,6 +632,7 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 	} else {
 		preBlockNumber = block.Block.Height
 		for {
+			c.logger.Trace("preBlock", "block", preBlockNumber)
 			block, err := c.QueryBlock(preBlockNumber + 1)
 			if err != nil {
 				return 0, err

@@ -168,7 +168,7 @@ func (h *Handler) handleActiveReportedEvent(m *core.Message) error {
 		}
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, 0)
 }
 
 func (h *Handler) dealIcaActiveReportedEvent(poolClient *hubClient.Client, eventActiveReported core.EventActiveReported) error {

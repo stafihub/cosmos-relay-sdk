@@ -90,9 +90,10 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
 		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators, memo)
 	if err != nil {
-		if err == hubClient.ErrNoMsgs {
-			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
-		} else {
+		switch {
+		case err == hubClient.ErrNoMsgs:
+			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
+		default:
 			h.log.Error("handleEraPoolUpdatedEvent GetBondUnbondUnsignedTx failed",
 				"pool address", poolAddressStr,
 				"height", height,
@@ -152,6 +153,13 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 				"pool address", poolAddressStr,
 				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
+		case 2:
+			h.log.Info("handleEraPoolUpdatedEvent no available vals for unbond and gen withdraw Tx",
+				"pool address", poolAddressStr,
+				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
+				"proposalId", proposalIdHexStr)
+		default:
+			return fmt.Errorf("unsupport unSignedType %d", unSignedType)
 		}
 
 		// send signature to stafihub
@@ -188,7 +196,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		break
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, unSignedType)
 }
 
 func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, eventEraPoolUpdated core.EventEraPoolUpdated) error {
@@ -235,7 +243,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
-			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
+			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
 		} else {
 			h.log.Error("handleEraPoolUpdatedEvent GetBondUnbondUnsignedTx failed",
 				"pool address", poolAddressStr,
@@ -284,5 +292,5 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 
-	return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
+	return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
 }

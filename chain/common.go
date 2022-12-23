@@ -119,7 +119,7 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 // ensue every validator claim reward
 // if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
 // if bond > unbond: gen delegate tx
-// if bond < unbond: gen undelegate+withdraw tx
+// if bond < unbond: gen undelegate+withdraw tx or withdraw tx when no available vals for unbonding
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedType int, err error) {
 
@@ -236,7 +236,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 		}
 		valAddrs = canUseValAddrs
 		if len(valAddrs) == 0 {
-			return nil, 0, fmt.Errorf("no valAddrs can be used to unbond, pool: %s", poolAddr)
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedType = 2
+			return
 		}
 
 		//sort validators by delegate amount
@@ -273,7 +278,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 		if !enough {
 			done()
-			return nil, 0, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddrStr)
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedType = 2
+			return
 		}
 
 		// filter withdraw validators
@@ -787,7 +797,7 @@ func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
+	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedType int) error {
 
 	h.log.Debug("checkAndSend", "txBts", hex.EncodeToString(txBts))
 	txHashHexStr := hex.EncodeToString(txHash)
@@ -833,7 +843,12 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeDealEraUpdated: //bond/unbond/claim
-			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
+			switch unSignedType {
+			case 2:
+				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.EitherBondUnbond)
+			default:
+				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.BothBondUnbond)
+			}
 
 		case stafiHubXLedgerTypes.TxTypeDealBondReported: //delegate reward
 			total := types.NewInt(0)
@@ -872,7 +887,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	}
 }
 
-func (h *Handler) sendBondReportMsg(shotId string) error {
+func (h *Handler) sendBondReportMsg(shotId string, action stafiHubXLedgerTypes.BondAction) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
@@ -880,7 +895,7 @@ func (h *Handler) sendBondReportMsg(shotId string) error {
 		Content: core.ProposalBondReport{
 			Denom:  string(h.conn.symbol),
 			ShotId: shotId,
-			Action: stafiHubXLedgerTypes.BothBondUnbond,
+			Action: action,
 		},
 	}
 
