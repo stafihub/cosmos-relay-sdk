@@ -351,7 +351,7 @@ func TestClient_QueryDelegationTotalRewards(t *testing.T) {
 	t.Log(client.GetDenom())
 	res, err := client.QueryDelegationTotalRewards(addr, 2458080)
 	assert.NoError(t, err)
-	for i, _ := range res.Rewards {
+	for i := range res.Rewards {
 		t.Log(i, res.Rewards[i].Reward.AmountOf(client.GetDenom()))
 		t.Log(i, res.Rewards[i].Reward.AmountOf(client.GetDenom()).TruncateInt())
 

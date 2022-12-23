@@ -165,7 +165,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	}
 
 	// ensure not duplicate
-	for poolAddr, _ := range poolClients {
+	for poolAddr := range poolClients {
 		if _, exist := icaPoolClients[poolAddr]; exist {
 			return nil, fmt.Errorf("duplicate pool address")
 		}

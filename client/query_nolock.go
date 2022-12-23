@@ -280,7 +280,7 @@ func (c *Client) GetCurrentBlockHeightNoLock() (int64, error) {
 
 func (c *Client) GetCurrentBLockAndTimestampNoLock() (int64, int64, error) {
 
-	status, err := c.getStatus()
+	status, err := c.getStatusNoLock()
 	if err != nil {
 		return 0, 0, err
 	}
@@ -298,8 +298,7 @@ func (c *Client) getStatusNoLock() (*ctypes.ResultStatus, error) {
 }
 
 func (c *Client) GetAccountNoLock() (client.Account, error) {
-
-	return c.getAccount(0, c.Ctx().FromAddress)
+	return c.getAccountNoLock(0, c.Ctx().FromAddress)
 }
 
 func (c *Client) getAccountNoLock(height int64, addr types.AccAddress) (client.Account, error) {
