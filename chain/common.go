@@ -865,6 +865,50 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 					total = total.Add(dele.Balance.Amount)
 				}
 			}
+
+			// height = max(latest redelegate height, era height)?
+			// the redelegate tx height maybe bigger than era height if rValidatorUpdatedEvent is dealed after a long time
+			height, err := poolClient.GetHeightByEra(wrappedUnSignedTx.Era, h.conn.eraSeconds, h.conn.offset)
+			if err != nil {
+				h.log.Error("handleEraPoolUpdatedEvent GetHeightByEra failed",
+					"pool address", poolAddressStr,
+					"era", wrappedUnSignedTx.Era,
+					"err", err)
+				return err
+			}
+
+			_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
+			if err != nil {
+				h.log.Error("handleEraPoolUpdatedEvent GetLatestReDelegateTx failed",
+					"pool address", poolAddressStr,
+					"era", wrappedUnSignedTx.Era,
+					"err", err)
+				return err
+			}
+			if redelegateTxHeight > height {
+				height = redelegateTxHeight
+			}
+			targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
+			if err != nil {
+				return err
+			}
+			_, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, wrappedUnSignedTx.Bond,
+				wrappedUnSignedTx.Unbond, poolAddress, height, targetValidators, "memo")
+			if err != nil && err != hubClient.ErrNoMsgs {
+				return err
+			}
+			if err == nil && unSignedType == 2 {
+				diff := new(big.Int).Sub(wrappedUnSignedTx.Unbond, wrappedUnSignedTx.Bond)
+				if diff.Sign() < 0 {
+					diff = big.NewInt(0)
+				}
+				// we should sub diff as we use eitherBondUnbond action to bondReport
+				total = total.Sub(types.NewIntFromBigInt(diff))
+				if total.IsNegative() {
+					total = types.ZeroInt()
+				}
+			}
+
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
 
 		case stafiHubXLedgerTypes.TxTypeDealActiveReported: //transfer unbond token to user
@@ -984,12 +1028,12 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	for {
 		sigs, err := h.getSignatureFromStafiHub(param)
 		if err != nil {
-			h.log.Debug("getSignatureFromStafiHub failed, will retry.", "err", err)
+			h.log.Warn("getSignatureFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if len(sigs) < int(threshold) {
-			h.log.Debug("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
+			h.log.Warn("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
@@ -1004,13 +1048,13 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHub
 	for {
 		status, err = h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
-			h.log.Debug("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
+			h.log.Warn("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
 			err = fmt.Errorf("status not match, status: %s", status)
-			h.log.Debug("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
+			h.log.Warn("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
