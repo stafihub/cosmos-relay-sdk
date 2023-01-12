@@ -178,7 +178,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 		return
 	case -1:
 		// skip and withdraw if less than min undelegate amount
-		if new(big.Int).Sub(unbond, bond).Cmp(minUnDelegateAmount) < 0 {
+		if minUnDelegateAmount.Sign() > 0 && new(big.Int).Sub(unbond, bond).Cmp(minUnDelegateAmount) < 0 {
 			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
 				poolAddr,
 				height,

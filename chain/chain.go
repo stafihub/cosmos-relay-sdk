@@ -47,6 +47,9 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log.Logger, sysErr
 	if len(option.MinUnDelegateAmount) > 0 {
 		value, ok := types.NewIntFromString(option.MinUnDelegateAmount)
 		if ok {
+			if value.IsNegative() {
+				return fmt.Errorf("minUnDelegateAmount format err")
+			}
 			minUndelegateAmount = value
 		} else {
 			return fmt.Errorf("minUnDelegateAmount format err")
