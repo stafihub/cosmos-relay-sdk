@@ -11,21 +11,23 @@ import (
 const msgLimit = 4096
 
 type Handler struct {
-	conn       *Connection
-	router     *core.Router
-	msgChan    chan *core.Message
-	log        log.Logger
-	stopChan   <-chan struct{}
-	sysErrChan chan<- error
+	conn                *Connection
+	minUnDelegateAmount types.Int //skip unbond, if less than this on multisg addresse
+	router              *core.Router
+	msgChan             chan *core.Message
+	log                 log.Logger
+	stopChan            <-chan struct{}
+	sysErrChan          chan<- error
 }
 
-func NewHandler(conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
+func NewHandler(conn *Connection, minUnDelegateAmount types.Int, log log.Logger, stopChan <-chan struct{}, sysErrChan chan<- error) *Handler {
 	return &Handler{
-		conn:       conn,
-		msgChan:    make(chan *core.Message, msgLimit),
-		log:        log,
-		stopChan:   stopChan,
-		sysErrChan: sysErrChan,
+		conn:                conn,
+		minUnDelegateAmount: minUnDelegateAmount,
+		msgChan:             make(chan *core.Message, msgLimit),
+		log:                 log,
+		stopChan:            stopChan,
+		sysErrChan:          sysErrChan,
 	}
 }
 

@@ -3,26 +3,23 @@ package client_test
 import (
 	"encoding/hex"
 	"fmt"
-
-	// "strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/JFJun/go-substrate-crypto/ss58"
-	"github.com/sirupsen/logrus"
-	"github.com/tendermint/tendermint/crypto"
-
 	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"github.com/JFJun/go-substrate-crypto/ss58"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
+	"github.com/sirupsen/logrus"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/tendermint/tendermint/crypto"
 )
 
 var client *hubClient.Client
@@ -363,8 +360,14 @@ func TestMemo(t *testing.T) {
 	// initClient()
 	// res, err := client.QueryTxByHash("c7e3f7baf5a5f1d8cbc112080f32070dddd7cca5fe4272e06f8d42c17b25193f")
 	// assert.NoError(t, err)
-
+	s, ok := types.NewIntFromString("")
+	assert.False(t, ok)
+	t.Log(s)
+	s2, ok := types.NewIntFromString("0")
+	assert.True(t, ok)
+	t.Log(s2)
 	txBts, err := hex.DecodeString("")
+	assert.NoError(t, err)
 	tx, err := client.GetTxConfig().TxDecoder()(txBts)
 	//tx, err := client.GetTxConfig().TxJSONDecoder()(res.Tx.Value)
 	assert.NoError(t, err)

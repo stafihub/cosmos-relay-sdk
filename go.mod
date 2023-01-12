@@ -1,6 +1,6 @@
 module github.com/stafihub/cosmos-relay-sdk
 
-go 1.18
+go 1.19
 
 require (
 	github.com/JFJun/go-substrate-crypto v1.0.1

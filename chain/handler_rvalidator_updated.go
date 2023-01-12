@@ -174,7 +174,7 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 		break
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, 0)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, UnSignedTxTypeUnSpecified)
 }
 
 func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, eventRValidatorUpdated core.EventRValidatorUpdated) error {

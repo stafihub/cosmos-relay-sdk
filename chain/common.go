@@ -26,6 +26,14 @@ import (
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
+const (
+	UnSignedTxTypeUnSpecified             = 0
+	UnSignedTxTypeBondEqualUnbondWithdraw = 1
+	UnSignedTxTypeDelegate                = 2
+	UnSignedTxTypeUnDelegateAndWithdraw   = 3
+	UnSignedTxTypeSkipAndWithdraw         = 4
+)
+
 var (
 	ErrNoOutPuts            = errors.New("outputs length is zero")
 	ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
@@ -120,8 +128,8 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 // if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
 // if bond > unbond: gen delegate tx
 // if bond < unbond: gen undelegate+withdraw tx or withdraw tx when no available vals for unbonding
-func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
-	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedType int, err error) {
+func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond, minUnDelegateAmount *big.Int,
+	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedTxType int, err error) {
 
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
@@ -149,7 +157,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			poolAddr,
 			height,
 			memo)
-		unSignedType = 0
+		unSignedTxType = UnSignedTxTypeBondEqualUnbondWithdraw
 		return
 	case 1:
 		valAddrs := targets
@@ -166,9 +174,19 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			valAddrs,
 			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)),
 			memo)
-		unSignedType = 1
+		unSignedTxType = UnSignedTxTypeDelegate
 		return
 	case -1:
+		// skip and withdraw if less than min undelegate amount
+		if new(big.Int).Sub(unbond, bond).Cmp(minUnDelegateAmount) < 0 {
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
+			return
+		}
+
 		var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
 		deleRes, err = client.QueryDelegations(poolAddr, height)
 		if err != nil {
@@ -240,7 +258,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 				poolAddr,
 				height,
 				memo)
-			unSignedType = 2
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
 			return
 		}
 
@@ -265,7 +283,6 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 				choosedVals = append(choosedVals, validator)
 				choosedAmount[validator.String()] = willUseChoosedAmount
-				selectedAmount = selectedAmount.Add(willUseChoosedAmount)
 
 				enough = true
 				break
@@ -282,7 +299,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 				poolAddr,
 				height,
 				memo)
-			unSignedType = 2
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
 			return
 		}
 
@@ -311,7 +328,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			choosedAmount,
 			withdrawVals,
 			memo)
-		unSignedType = -1
+		unSignedTxType = UnSignedTxTypeUnDelegateAndWithdraw
 		return
 	default:
 		return nil, 0, fmt.Errorf("unreached case err")
@@ -459,7 +476,6 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 
 				choosedVals = append(choosedVals, validator)
 				choosedAmount[validator.String()] = willUseChoosedAmount
-				selectedAmount = selectedAmount.Add(willUseChoosedAmount)
 
 				enough = true
 				break
@@ -797,7 +813,7 @@ func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedType int) error {
+	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedTxType int) error {
 
 	h.log.Debug("checkAndSend", "txBts", hex.EncodeToString(txBts))
 	txHashHexStr := hex.EncodeToString(txHash)
@@ -843,8 +859,8 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeDealEraUpdated: //bond/unbond/claim
-			switch unSignedType {
-			case 2:
+			switch unSignedTxType {
+			case UnSignedTxTypeSkipAndWithdraw:
 				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.EitherBondUnbond)
 			default:
 				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.BothBondUnbond)
@@ -892,12 +908,13 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			if err != nil {
 				return err
 			}
-			_, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, wrappedUnSignedTx.Bond,
-				wrappedUnSignedTx.Unbond, poolAddress, height, targetValidators, "memo")
+			// check tx type
+			_, unSignedTxType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, wrappedUnSignedTx.Bond,
+				wrappedUnSignedTx.Unbond, h.minUnDelegateAmount.BigInt(), poolAddress, height, targetValidators, "memo")
 			if err != nil && err != hubClient.ErrNoMsgs {
 				return err
 			}
-			if err == nil && unSignedType == 2 {
+			if err == nil && unSignedTxType == UnSignedTxTypeSkipAndWithdraw {
 				diff := new(big.Int).Sub(wrappedUnSignedTx.Unbond, wrappedUnSignedTx.Bond)
 				if diff.Sign() < 0 {
 					diff = big.NewInt(0)

@@ -193,7 +193,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		break
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, 0)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, UnSignedTxTypeUnSpecified)
 }
 
 func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eventBondReported core.EventBondReported) error {
