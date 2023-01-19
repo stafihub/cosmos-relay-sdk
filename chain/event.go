@@ -175,15 +175,17 @@ func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, 
 	}
 	if len(memo) == 0 {
 		l.log.Warn("received token but no memo", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String())
-		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
-		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+		return nil
+		// proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
+		// return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 	}
 
 	split := strings.Split(memo, ":")
 	if len(split) < 2 {
 		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-		proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
-		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+		return nil
+		// proposalExeLiquidityBond.State = xLedgerTypes.LiquidityBondStateMemoUnmatch
+		// return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
 	}
 
 	switch split[0] {
