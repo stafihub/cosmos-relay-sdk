@@ -40,7 +40,8 @@ func initClient() {
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://rpc.carbon.blockhunters.org:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
@@ -52,8 +53,8 @@ func initClient() {
 func TestQueryBlock(t *testing.T) {
 	initClient()
 
-	init := int64(1327510)
-	end := int64(1317510)
+	init := int64(21164251)
+	end := int64(21164261)
 	initBlock, _ := client.QueryBlock(init)
 	endBlock, _ := client.QueryBlock(end)
 	t.Log("init height", init, "timestamp", initBlock.Block.Header.Time.Unix())
@@ -109,11 +110,11 @@ func TestQuerySignInfo(t *testing.T) {
 func TestClient_QueryTxByHash(t *testing.T) {
 	initClient()
 
-	res, err := client.QueryTxByHash("bc6c390ab31c647dda0309a98aae35d8734f4f14f15bde521e3c7ec184a4b177")
+	res, err := client.QueryTxByHash("C7F7A80929B80D2BCD5597FEF65469F0FAF9C2B05723B8540109790099AF035F")
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(res.Code)
+	t.Log(res.String())
 	tx := res.GetTx()
 	sig, ok := tx.(*txtypes.Tx)
 	if !ok {
@@ -125,8 +126,6 @@ func TestClient_QueryTxByHash(t *testing.T) {
 	curBlock, err := client.GetCurrentBlockHeight()
 	assert.NoError(t, err)
 	t.Log(curBlock)
-	time.Sleep(1 * time.Second)
-	t.Log("\n")
 
 }
 
@@ -182,7 +181,7 @@ func TestClient_GetEvent(t *testing.T) {
 
 }
 
-func TestGetTxs(t *testing.T) {
+func TestParseTxs(t *testing.T) {
 	initClient()
 
 	filter := []string{fmt.Sprintf("transfer.recipient='%s'", "cosmos1zae7esjpkn6h35dftth6qkgc59dcrg9t079mv6"), "message.module='bank'"}
@@ -331,22 +330,26 @@ func TestAddress(t *testing.T) {
 
 func TestClient_QueryDelegations(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
+	addr, err := types.AccAddressFromBech32("swth17tj6f8kwygvd2959wnnvkhhevuva5h03nr8qh7")
 	assert.NoError(t, err)
-	res, err := client.QueryDelegations(addr, 2458080)
+	res, err := client.QueryDelegations(addr, 38275995)
 	assert.NoError(t, err)
 	t.Log(res.String())
 	for i, d := range res.GetDelegationResponses() {
 		t.Log(i, d.Balance.Amount.IsZero())
 	}
+
+	balance,err:=client.QueryBalance(addr,"swth",38275995)
+	assert.NoError(t, err)
+	t.Log(balance.String())
 }
 
 func TestClient_QueryDelegationTotalRewards(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("cosmos12yprrdprzat35zhqxe2fcnn3u26gwlt6xcq0pj")
+	addr, err := types.AccAddressFromBech32("swth17tj6f8kwygvd2959wnnvkhhevuva5h03nr8qh7")
 	assert.NoError(t, err)
 	t.Log(client.GetDenom())
-	res, err := client.QueryDelegationTotalRewards(addr, 2458080)
+	res, err := client.QueryDelegationTotalRewards(addr, 38274995)
 	assert.NoError(t, err)
 	for i := range res.Rewards {
 		t.Log(i, res.Rewards[i].Reward.AmountOf(client.GetDenom()))
@@ -545,4 +548,17 @@ func TestQueryDelegations(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(delegations)
+}
+
+
+func TestGetTxs(t *testing.T) {
+	initClient()
+
+	filter := []string{fmt.Sprintf("message.action='%s'", "/cosmos.bank.v1beta1.MsgMultiSend"), "message.module='bank'"}
+	txs, err := client.GetTxs(filter, 1, 2, "asc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(txs.Count, txs.PageTotal, txs.PageNumber, txs.Limit, len(txs.Txs))
+
 }
