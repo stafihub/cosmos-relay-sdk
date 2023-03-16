@@ -41,7 +41,7 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
-	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://rpc.carbon.blockhunters.org:443"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
@@ -330,31 +330,31 @@ func TestAddress(t *testing.T) {
 
 func TestClient_QueryDelegations(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("swth17tj6f8kwygvd2959wnnvkhhevuva5h03nr8qh7")
+	addr, err := types.AccAddressFromBech32("swth10j3yjvgzm7r22us3tqz49gkgtkj0rt3pg6w8z7")
 	assert.NoError(t, err)
-	res, err := client.QueryDelegations(addr, 38275995)
+	height := int64(38306830)
+	res, err := client.QueryDelegations(addr, height)
 	assert.NoError(t, err)
-	t.Log(res.String())
+	// t.Log(res.String())
 	for i, d := range res.GetDelegationResponses() {
-		t.Log(i, d.Balance.Amount.IsZero())
+		t.Log(i, d.Balance.Amount)
 	}
 
-	balance,err:=client.QueryBalance(addr,"swth",38275995)
+	balance, err := client.QueryBalance(addr, "swth", height)
 	assert.NoError(t, err)
 	t.Log(balance.String())
 }
 
 func TestClient_QueryDelegationTotalRewards(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("swth17tj6f8kwygvd2959wnnvkhhevuva5h03nr8qh7")
+	addr, err := types.AccAddressFromBech32("swth10j3yjvgzm7r22us3tqz49gkgtkj0rt3pg6w8z7")
 	assert.NoError(t, err)
 	t.Log(client.GetDenom())
-	res, err := client.QueryDelegationTotalRewards(addr, 38274995)
+	res, err := client.QueryDelegationTotalRewards(addr, 38307252)
 	assert.NoError(t, err)
 	for i := range res.Rewards {
 		t.Log(i, res.Rewards[i].Reward.AmountOf(client.GetDenom()))
 		t.Log(i, res.Rewards[i].Reward.AmountOf(client.GetDenom()).TruncateInt())
-
 	}
 	t.Log("total ", res.GetTotal().AmountOf(client.GetDenom()).TruncateInt())
 }
@@ -549,7 +549,6 @@ func TestQueryDelegations(t *testing.T) {
 	}
 	t.Log(delegations)
 }
-
 
 func TestGetTxs(t *testing.T) {
 	initClient()
