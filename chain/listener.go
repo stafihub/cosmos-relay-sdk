@@ -20,7 +20,6 @@ var (
 )
 
 type Listener struct {
-	name               string
 	symbol             core.RSymbol
 	startBlock         uint64
 	blockstore         utils.Blockstorer
@@ -32,7 +31,7 @@ type Listener struct {
 	sysErrChan         chan<- error
 }
 
-func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
+func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
 	client, err := conn.GetOnePoolClient()
 	if err != nil {
 		sysErr <- fmt.Errorf("no pool client")
@@ -42,7 +41,6 @@ func NewListener(name string, symbol core.RSymbol, startBlock uint64, bs utils.B
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
 	done()
 	return &Listener{
-		name:               name,
 		symbol:             symbol,
 		startBlock:         startBlock,
 		distributionAddStr: moduleAddressStr,

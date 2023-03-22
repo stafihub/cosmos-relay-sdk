@@ -23,6 +23,9 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	if !ok {
 		return fmt.Errorf("EventRValidatorUpdatedEvent cast failed, %+v", m)
 	}
+	if eventRValidatorUpdated.CycleSeconds == 0 {
+		return fmt.Errorf("handleRValidatorUpdatedEvent eventRValidatorUpdated.CycleSeconds is zero")
+	}
 
 	poolClient, isIcaPool, err := h.conn.GetPoolClient(eventRValidatorUpdated.PoolAddress)
 	if err != nil {
@@ -64,7 +67,7 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 	done()
 
 	// got target height
-	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
+	height, err := poolClient.GetHeightByTimestamp(eventRValidatorUpdated.BlockTimestamp)
 	if err != nil {
 		return err
 	}
@@ -171,7 +174,7 @@ func (h *Handler) handleRValidatorUpdatedEvent(m *core.Message) error {
 		break
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, UnSignedTxTypeUnSpecified)
 }
 
 func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, eventRValidatorUpdated core.EventRValidatorUpdated) error {
@@ -203,7 +206,7 @@ func (h *Handler) dealIcaRValidatorUpdatedEvent(poolClient *hubClient.Client, ev
 	done()
 
 	// got target height
-	height, err := poolClient.GetHeightByEra(uint32(eventRValidatorUpdated.CycleNumber), int64(eventRValidatorUpdated.CycleSeconds), 0)
+	height, err := poolClient.GetHeightByTimestamp(eventRValidatorUpdated.BlockTimestamp)
 	if err != nil {
 		return err
 	}

@@ -570,9 +570,14 @@ func (c *Client) QueryVotes(proposalId uint64, height int64, page, limit uint64,
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
 	if int64(era) < offset {
-		return 0, fmt.Errorf("era mustn't less than offset")
+		return 0, fmt.Errorf("era: %d is less than offset: %d", era, offset)
 	}
 	targetTimestamp := (int64(era) - offset) * eraSeconds
+	return c.GetHeightByTimestamp(targetTimestamp)
+}
+
+func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
+	c.logger.Trace("GetHeightByTimestamp", "targetTimestamp", targetTimestamp)
 
 	blockNumber, timestamp, err := c.GetCurrentBLockAndTimestamp()
 	if err != nil {
@@ -580,7 +585,33 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 	}
 	seconds := timestamp - targetTimestamp
 	if seconds < 0 {
-		return 0, fmt.Errorf("timestamp can not less than targetTimestamp")
+		// return if over 20 minutes
+		if seconds < -60*20 {
+			return 0, fmt.Errorf("latest block timestamp: %d is less than targetTimestamp: %d", timestamp, targetTimestamp)
+		}
+
+		retry := 0
+		for {
+			if retry > retryLimit {
+				return 0, fmt.Errorf("latest block timestamp: %d is less than targetTimestamp: %d", timestamp, targetTimestamp)
+			}
+
+			blockNumber, timestamp, err = c.GetCurrentBLockAndTimestamp()
+			if err != nil {
+				return 0, err
+			}
+			if timestamp < targetTimestamp {
+				c.logger.Warn(fmt.Sprintf("latest block timestamp: %d is less than targetTimestamp: %d, will wait...", timestamp, targetTimestamp))
+
+				time.Sleep(waitTime)
+				retry++
+
+				continue
+			}
+
+			seconds = timestamp - targetTimestamp
+			break
+		}
 	}
 
 	tmpTargetBlock := blockNumber - seconds/7
@@ -593,11 +624,13 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 		return 0, err
 	}
 
+	// return after blocknumber
 	var afterBlockNumber int64
 	var preBlockNumber int64
 	if block.Block.Header.Time.Unix() > targetTimestamp {
 		afterBlockNumber = block.Block.Height
 		for {
+			c.logger.Trace("afterBlock", "block", afterBlockNumber)
 			if afterBlockNumber <= 2 {
 				return 1, nil
 			}
@@ -607,14 +640,16 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 			}
 			if block.Block.Time.Unix() > targetTimestamp {
 				afterBlockNumber = block.Block.Height
-			} else {
-				break
+				continue
 			}
+
+			break
 		}
 
 	} else {
 		preBlockNumber = block.Block.Height
 		for {
+			c.logger.Trace("preBlock", "block", preBlockNumber)
 			block, err := c.QueryBlock(preBlockNumber + 1)
 			if err != nil {
 				return 0, err

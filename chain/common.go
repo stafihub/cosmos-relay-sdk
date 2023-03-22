@@ -26,6 +26,16 @@ import (
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
+var cosmosV9Height = int64(14470501)
+
+const (
+	UnSignedTxTypeUnSpecified             = 0
+	UnSignedTxTypeBondEqualUnbondWithdraw = 1
+	UnSignedTxTypeDelegate                = 2
+	UnSignedTxTypeUnDelegateAndWithdraw   = 3
+	UnSignedTxTypeSkipAndWithdraw         = 4
+)
+
 var (
 	ErrNoOutPuts            = errors.New("outputs length is zero")
 	ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
@@ -119,9 +129,9 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 // ensue every validator claim reward
 // if bond == unbond: if no delegation before, return errNoMsgs, else gen withdraw tx
 // if bond > unbond: gen delegate tx
-// if bond < unbond: gen undelegate+withdraw tx
-func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond *big.Int,
-	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedType int, err error) {
+// if bond < unbond: gen undelegate+withdraw tx or withdraw tx when no available vals for unbonding
+func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond, minUnDelegateAmount *big.Int,
+	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedTxType int, err error) {
 
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
@@ -149,7 +159,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			poolAddr,
 			height,
 			memo)
-		unSignedType = 0
+		unSignedTxType = UnSignedTxTypeBondEqualUnbondWithdraw
 		return
 	case 1:
 		valAddrs := targets
@@ -166,9 +176,19 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			valAddrs,
 			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)),
 			memo)
-		unSignedType = 1
+		unSignedTxType = UnSignedTxTypeDelegate
 		return
 	case -1:
+		// skip and withdraw if less than min undelegate amount
+		if minUnDelegateAmount.Sign() > 0 && new(big.Int).Sub(unbond, bond).Cmp(minUnDelegateAmount) < 0 {
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
+			return
+		}
+
 		var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
 		deleRes, err = client.QueryDelegations(poolAddr, height)
 		if err != nil {
@@ -236,7 +256,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 		}
 		valAddrs = canUseValAddrs
 		if len(valAddrs) == 0 {
-			return nil, 0, fmt.Errorf("no valAddrs can be used to unbond, pool: %s", poolAddr)
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
+			return
 		}
 
 		//sort validators by delegate amount
@@ -260,7 +285,6 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 				choosedVals = append(choosedVals, validator)
 				choosedAmount[validator.String()] = willUseChoosedAmount
-				selectedAmount = selectedAmount.Add(willUseChoosedAmount)
 
 				enough = true
 				break
@@ -273,7 +297,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 		if !enough {
 			done()
-			return nil, 0, fmt.Errorf("can't find enough valAddrs to unbond, pool: %s", poolAddrStr)
+			unSignedTx, err = client.GenMultiSigRawWithdrawAllRewardTxWithMemo(
+				poolAddr,
+				height,
+				memo)
+			unSignedTxType = UnSignedTxTypeSkipAndWithdraw
+			return
 		}
 
 		// filter withdraw validators
@@ -301,7 +330,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 			choosedAmount,
 			withdrawVals,
 			memo)
-		unSignedType = -1
+		unSignedTxType = UnSignedTxTypeUnDelegateAndWithdraw
 		return
 	default:
 		return nil, 0, fmt.Errorf("unreached case err")
@@ -449,7 +478,6 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 
 				choosedVals = append(choosedVals, validator)
 				choosedAmount[validator.String()] = willUseChoosedAmount
-				selectedAmount = selectedAmount.Add(willUseChoosedAmount)
 
 				enough = true
 				break
@@ -661,6 +689,12 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			fallthrough
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
+			if strings.EqualFold(c.GetDenom(), "uatom") {
+				if height < cosmosV9Height {
+					continue
+				}
+			}
+
 			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 			if err != nil {
 				return nil, 0, err
@@ -691,6 +725,11 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 					continue
 				}
 				height := tx.Height - 1
+				if strings.EqualFold(c.GetDenom(), "uatom") {
+					if height < cosmosV9Height {
+						continue
+					}
+				}
 				totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 				if err != nil {
 					return nil, 0, err
@@ -787,8 +826,9 @@ func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types
 }
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
-	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress) error {
+	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedTxType int) error {
 
+	h.log.Debug("checkAndSend", "txBts", hex.EncodeToString(txBts))
 	txHashHexStr := hex.EncodeToString(txHash)
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddressStr := poolAddress.String()
@@ -832,7 +872,13 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeDealEraUpdated: //bond/unbond/claim
-			return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId)
+			switch unSignedTxType {
+			case UnSignedTxTypeSkipAndWithdraw:
+				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.EitherBondUnbond)
+			default:
+				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.BothBondUnbond)
+			}
+
 		case stafiHubXLedgerTypes.TxTypeDealBondReported: //delegate reward
 			total := types.NewInt(0)
 			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
@@ -848,11 +894,57 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 					total = total.Add(dele.Balance.Amount)
 				}
 			}
+
+			// height = max(latest redelegate height, era height)?
+			// the redelegate tx height maybe bigger than era height if rValidatorUpdatedEvent is dealed after a long time
+			height, err := poolClient.GetHeightByEra(wrappedUnSignedTx.Era, h.conn.eraSeconds, h.conn.offset)
+			if err != nil {
+				h.log.Error("handleEraPoolUpdatedEvent GetHeightByEra failed",
+					"pool address", poolAddressStr,
+					"era", wrappedUnSignedTx.Era,
+					"err", err)
+				return err
+			}
+
+			_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
+			if err != nil {
+				h.log.Error("handleEraPoolUpdatedEvent GetLatestReDelegateTx failed",
+					"pool address", poolAddressStr,
+					"era", wrappedUnSignedTx.Era,
+					"err", err)
+				return err
+			}
+			if redelegateTxHeight > height {
+				height = redelegateTxHeight
+			}
+			targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
+			if err != nil {
+				return err
+			}
+			// check tx type
+			_, unSignedTxType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, wrappedUnSignedTx.Bond,
+				wrappedUnSignedTx.Unbond, h.minUnDelegateAmount.BigInt(), poolAddress, height, targetValidators, "memo")
+			if err != nil && err != hubClient.ErrNoMsgs {
+				return err
+			}
+			if err == nil && unSignedTxType == UnSignedTxTypeSkipAndWithdraw {
+				diff := new(big.Int).Sub(wrappedUnSignedTx.Unbond, wrappedUnSignedTx.Bond)
+				if diff.Sign() < 0 {
+					diff = big.NewInt(0)
+				}
+				// we should sub diff as we use eitherBondUnbond action to bondReport
+				total = total.Sub(types.NewIntFromBigInt(diff))
+				if total.IsNegative() {
+					total = types.ZeroInt()
+				}
+			}
+
 			return h.sendActiveReportMsg(wrappedUnSignedTx.SnapshotId, total.BigInt())
+
 		case stafiHubXLedgerTypes.TxTypeDealActiveReported: //transfer unbond token to user
 			return h.sendTransferReportMsg(wrappedUnSignedTx.SnapshotId)
-		case stafiHubXLedgerTypes.TxTypeDealValidatorUpdated: // redelegate
 
+		case stafiHubXLedgerTypes.TxTypeDealValidatorUpdated: // redelegate
 			// update target validator when redelegate success
 			h.conn.ReplacePoolTargetValidator(poolAddressStr, wrappedUnSignedTx.OldValidator, wrappedUnSignedTx.NewValidator)
 			return h.sendRValidatorUpdateReportReportMsg(
@@ -869,7 +961,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 	}
 }
 
-func (h *Handler) sendBondReportMsg(shotId string) error {
+func (h *Handler) sendBondReportMsg(shotId string, action stafiHubXLedgerTypes.BondAction) error {
 	m := core.Message{
 		Source:      h.conn.symbol,
 		Destination: core.HubRFIS,
@@ -877,7 +969,7 @@ func (h *Handler) sendBondReportMsg(shotId string) error {
 		Content: core.ProposalBondReport{
 			Denom:  string(h.conn.symbol),
 			ShotId: shotId,
-			Action: stafiHubXLedgerTypes.BothBondUnbond,
+			Action: action,
 		},
 	}
 
@@ -966,12 +1058,12 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 	for {
 		sigs, err := h.getSignatureFromStafiHub(param)
 		if err != nil {
-			h.log.Debug("getSignatureFromStafiHub failed, will retry.", "err", err)
+			h.log.Warn("getSignatureFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if len(sigs) < int(threshold) {
-			h.log.Debug("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
+			h.log.Warn("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
@@ -986,13 +1078,13 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHub
 	for {
 		status, err = h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
-			h.log.Debug("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
+			h.log.Warn("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
 			err = fmt.Errorf("status not match, status: %s", status)
-			h.log.Debug("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
+			h.log.Warn("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}

@@ -87,12 +87,13 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 	}
 
 	memo := GetMemo(snap.Era, TxTypeHandleEraPoolUpdatedEvent)
-	unSignedTx, unSignedType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
-		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators, memo)
+	unSignedTx, unSignedTxType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
+		snap.Chunk.Unbond.BigInt(), h.minUnDelegateAmount.BigInt(), poolAddress, height, targetValidators, memo)
 	if err != nil {
-		if err == hubClient.ErrNoMsgs {
-			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
-		} else {
+		switch {
+		case err == hubClient.ErrNoMsgs:
+			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
+		default:
 			h.log.Error("handleEraPoolUpdatedEvent GetBondUnbondUnsignedTx failed",
 				"pool address", poolAddressStr,
 				"height", height,
@@ -136,22 +137,30 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		proposalId := GetBondUnBondProposalId(shotIdArray, snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt(), uint8(i))
 		proposalIdHexStr := hex.EncodeToString(proposalId)
 
-		switch unSignedType {
-		case 0:
+		switch unSignedTxType {
+		case UnSignedTxTypeBondEqualUnbondWithdraw:
 			h.log.Info("handleEraPoolUpdatedEvent gen withdraw Tx",
 				"pool address", poolAddressStr,
 				"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
-		case 1:
+		case UnSignedTxTypeDelegate:
 			h.log.Info("handleEraPoolUpdatedEvent gen unsigned bond Tx",
 				"pool address", poolAddressStr,
 				"bond amount", new(big.Int).Sub(snap.Chunk.Bond.BigInt(), snap.Chunk.Unbond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
-		case -1:
+		case UnSignedTxTypeUnDelegateAndWithdraw:
 			h.log.Info("handleEraPoolUpdatedEvent gen unsigned unbond+withdraw Tx",
 				"pool address", poolAddressStr,
 				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
 				"proposalId", proposalIdHexStr)
+		case UnSignedTxTypeSkipAndWithdraw:
+			h.log.Info("handleEraPoolUpdatedEvent no available vals for unbond or unbond less than min undelegate amount and we gen withdraw Tx",
+				"pool address", poolAddressStr,
+				"unbond amount", new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt()).String(),
+				"minUndelegateAmount", h.minUnDelegateAmount.String(),
+				"proposalId", proposalIdHexStr)
+		default:
+			return fmt.Errorf("unsupport unSignedType %d", unSignedTxType)
 		}
 
 		// send signature to stafihub
@@ -188,7 +197,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		break
 	}
 
-	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress)
+	return h.checkAndSend(poolClient, &wrapUnsignedTx, m, txHash, txBts, poolAddress, unSignedTxType)
 }
 
 func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, eventEraPoolUpdated core.EventEraPoolUpdated) error {
@@ -235,7 +244,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
-			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
+			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
 		} else {
 			h.log.Error("handleEraPoolUpdatedEvent GetBondUnbondUnsignedTx failed",
 				"pool address", poolAddressStr,
@@ -284,5 +293,5 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 
-	return h.sendBondReportMsg(eventEraPoolUpdated.ShotId)
+	return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
 }

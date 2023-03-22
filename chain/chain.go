@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/stafihub/rtoken-relay-core/common/config"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
@@ -41,6 +43,19 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log.Logger, sysErr
 		return err
 	}
 
+	minUndelegateAmount := types.NewIntFromUint64(0)
+	if len(option.MinUnDelegateAmount) > 0 {
+		value, ok := types.NewIntFromString(option.MinUnDelegateAmount)
+		if ok {
+			if value.IsNegative() {
+				return fmt.Errorf("minUnDelegateAmount format err")
+			}
+			minUndelegateAmount = value
+		} else {
+			return fmt.Errorf("minUnDelegateAmount format err")
+		}
+	}
+
 	conn, err := NewConnection(cfg, option, logger)
 	if err != nil {
 		return err
@@ -57,8 +72,8 @@ func (c *Chain) Initialize(cfg *config.RawChainConfig, logger log.Logger, sysErr
 		return err
 	}
 
-	l := NewListener(cfg.Name, core.RSymbol(cfg.Rsymbol), startBlk, bs, conn, logger, stop, sysErr)
-	h := NewHandler(conn, logger, stop, sysErr)
+	l := NewListener(core.RSymbol(cfg.Rsymbol), startBlk, bs, conn, logger, stop, sysErr)
+	h := NewHandler(conn, minUndelegateAmount, logger, stop, sysErr)
 
 	c.rSymbol = core.RSymbol(cfg.Rsymbol)
 	c.listener = l

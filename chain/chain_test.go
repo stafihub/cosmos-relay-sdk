@@ -1,7 +1,6 @@
 package chain_test
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ var (
 
 func mockStdin() error {
 	content := []byte("tpkeeper\n")
-	tmpfile, err := ioutil.TempFile("", "example")
+	tmpfile, err := os.CreateTemp("", "example")
 	if err != nil {
 		return err
 	}
@@ -117,13 +116,13 @@ func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 		t.Fatal(err)
 	}
 	for {
-		go func() {
+		go func(tt *testing.T) {
 			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
 			if err != nil {
-				t.Fatal(err)
+				tt.Log(err)
 			}
-			t.Log(height)
-		}()
+			tt.Log(height)
+		}(t)
 		time.Sleep(time.Millisecond * 10)
 	}
 }
