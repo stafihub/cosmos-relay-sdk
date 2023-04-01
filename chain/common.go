@@ -139,7 +139,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 
 	switch bond.Cmp(unbond) {
 	case 0:
-		// return errnoMsgs if no delegation before
+		// return errnoMsgs if total delegate amount <= 10000
 		var delegationRes *xStakingTypes.QueryDelegatorDelegationsResponse
 		delegationRes, err = client.QueryDelegations(poolAddr, height)
 		if err != nil {
@@ -150,7 +150,12 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 				return
 			}
 		}
-		if len(delegationRes.DelegationResponses) == 0 {
+
+		totalDelegateAmount := big.NewInt(0)
+		for _, res := range delegationRes.DelegationResponses {
+			totalDelegateAmount = new(big.Int).Add(totalDelegateAmount, res.Balance.Amount.BigInt())
+		}
+		if totalDelegateAmount.Cmp(big.NewInt(1e4)) <= 0 {
 			err = hubClient.ErrNoMsgs
 			return
 		}

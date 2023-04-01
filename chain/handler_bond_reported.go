@@ -60,26 +60,32 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return err
 	}
 
+	//we just activeReport if total delegate amount <= 10000
+	totalDelegateAmount := types.NewInt(0)
+	delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unable to find delegations for address") {
+			h.log.Error("QueryDelegations failed",
+				"pool", poolAddressStr,
+				"err", err)
+			return err
+		}
+	} else {
+		for _, dele := range delegationsRes.GetDelegationResponses() {
+			totalDelegateAmount = totalDelegateAmount.Add(dele.Balance.Amount)
+		}
+	}
+	if totalDelegateAmount.LTE(types.NewInt(1e4)) {
+		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era)
+		return h.sendActiveReportMsg(eventBondReported.ShotId, totalDelegateAmount.BigInt())
+	}
+
 	rewardCoins, height, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
 		if err == ErrNoRewardNeedDelegate {
-			//will return ErrNoMsgs if no reward or reward of that height is less than now , we just activeReport
-			total := types.NewInt(0)
-			delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
-			if err != nil {
-				if !strings.Contains(err.Error(), "unable to find delegations for address") {
-					h.log.Error("QueryDelegations failed",
-						"pool", poolAddressStr,
-						"err", err)
-					return err
-				}
-			} else {
-				for _, dele := range delegationsRes.GetDelegationResponses() {
-					total = total.Add(dele.Balance.Amount)
-				}
-			}
+			//will return ErrNoRewardNeedDelegate if no reward or reward of that height is less than now , we just activeReport
 			h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era)
-			return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
+			return h.sendActiveReportMsg(eventBondReported.ShotId, totalDelegateAmount.BigInt())
 		} else {
 			h.log.Error("handleBondReportedEvent GetRewardToBeDelegated failed",
 				"pool address", poolAddressStr,
