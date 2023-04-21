@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/url"
 	"strings"
@@ -568,7 +569,8 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 	}
 	seconds := timestamp - targetTimestamp
 	if seconds < 0 {
-		// return if over 20 minutes
+		// will wait if rpc node not sync to the latest block
+		// return err if over 20 minutes
 		if seconds < -60*20 {
 			return 0, fmt.Errorf("latest block timestamp: %d is less than targetTimestamp: %d", timestamp, targetTimestamp)
 		}
@@ -597,7 +599,21 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 		}
 	}
 
-	tmpTargetBlock := blockNumber - seconds/7
+	blockBefore10, err := c.QueryBlock(blockNumber - 10)
+	if err != nil {
+		return 0, err
+	}
+	if timestamp <= blockBefore10.Block.Header.Time.Unix() {
+		return 0, fmt.Errorf("block %d and %d timestamp unmatch", blockNumber, blockNumber-10)
+	}
+
+	blockSeconds := (float64(timestamp) - float64(blockBefore10.Block.Header.Time.Unix())) / float64(10)
+	c.logger.Trace("blockSeconds", blockSeconds)
+	if blockSeconds <= 0 {
+		return 0, fmt.Errorf("cal block seconds %f failed", blockSeconds)
+	}
+
+	tmpTargetBlock := blockNumber - int64(float64(seconds)/blockSeconds)
 	if tmpTargetBlock <= 0 {
 		tmpTargetBlock = 1
 	}
@@ -608,43 +624,89 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 	}
 
 	// return after blocknumber
-	var afterBlockNumber int64
-	var preBlockNumber int64
-	if block.Block.Header.Time.Unix() > targetTimestamp {
-		afterBlockNumber = block.Block.Height
-		for {
-			c.logger.Trace("afterBlock", "block", afterBlockNumber)
-			if afterBlockNumber <= 2 {
-				return 1, nil
-			}
-			block, err := c.QueryBlock(afterBlockNumber - 1)
-			if err != nil {
-				return 0, err
-			}
-			if block.Block.Time.Unix() > targetTimestamp {
-				afterBlockNumber = block.Block.Height
-				continue
-			}
-
+	var afterBlockNumber int64 = math.MaxInt64
+	var preBlockNumber int64 = 0
+	for {
+		if afterBlockNumber == preBlockNumber+1 {
 			break
 		}
 
-	} else {
-		preBlockNumber = block.Block.Height
-		for {
-			c.logger.Trace("preBlock", "block", preBlockNumber)
-			block, err := c.QueryBlock(preBlockNumber + 1)
+		c.logger.Trace("process", "pre block", preBlockNumber, "after block", afterBlockNumber)
+		if block.Block.Header.Time.Unix() >= targetTimestamp {
+			if block.Block.Height < afterBlockNumber {
+				afterBlockNumber = block.Block.Height
+			}
+			seconds := block.Block.Header.Time.Unix() - targetTimestamp
+			c.logger.Trace("afterBlock", "block", block.Block.Height, "seconds", seconds)
+
+			var nextQueryBlockNumber int64
+			if float64(seconds) < blockSeconds {
+				nextQueryBlockNumber = block.Block.Height - 1
+			} else {
+				nextQueryBlockNumber = block.Block.Height - int64(float64(seconds)/blockSeconds)
+			}
+
+			block, err = c.QueryBlock(nextQueryBlockNumber)
 			if err != nil {
 				return 0, err
 			}
-			if block.Block.Time.Unix() > targetTimestamp {
-				afterBlockNumber = block.Block.Height
-				break
-			} else {
+
+		} else {
+			if block.Block.Height > preBlockNumber {
 				preBlockNumber = block.Block.Height
+			}
+			seconds := targetTimestamp - block.Block.Header.Time.Unix()
+			c.logger.Trace("preBlock", "block", block.Block.Height, "seconds", seconds)
+
+			var nextQueryBlockNumber int64
+			if float64(seconds) < blockSeconds {
+				nextQueryBlockNumber = block.Block.Height + 1
+			} else {
+				nextQueryBlockNumber = block.Block.Height + int64(float64(seconds)/blockSeconds)
+			}
+
+			block, err = c.QueryBlock(nextQueryBlockNumber)
+			if err != nil {
+				return 0, err
 			}
 		}
 	}
+
+	// if block.Block.Header.Time.Unix() > targetTimestamp {
+	// 	afterBlockNumber = block.Block.Height
+	// 	for {
+	// 		c.logger.Trace("afterBlock", "block", afterBlockNumber)
+	// 		if afterBlockNumber <= 2 {
+	// 			return 1, nil
+	// 		}
+	// 		block, err := c.QueryBlock(afterBlockNumber - 1)
+	// 		if err != nil {
+	// 			return 0, err
+	// 		}
+	// 		if block.Block.Time.Unix() > targetTimestamp {
+	// 			afterBlockNumber = block.Block.Height
+	// 			continue
+	// 		}
+
+	// 		break
+	// 	}
+
+	// } else {
+	// 	preBlockNumber = block.Block.Height
+	// 	for {
+	// 		c.logger.Trace("preBlock", "block", preBlockNumber)
+	// 		block, err := c.QueryBlock(preBlockNumber + 1)
+	// 		if err != nil {
+	// 			return 0, err
+	// 		}
+	// 		if block.Block.Time.Unix() > targetTimestamp {
+	// 			afterBlockNumber = block.Block.Height
+	// 			break
+	// 		} else {
+	// 			preBlockNumber = block.Block.Height
+	// 		}
+	// 	}
+	// }
 
 	return afterBlockNumber, nil
 }
