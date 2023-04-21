@@ -201,8 +201,8 @@ func (l *Listener) dealBlocks() error {
 				if err != nil {
 					l.log.Error("Failed to write to blockstore", "err", err)
 				}
-
 				retry = 0
+				break
 			}
 		}
 	}
