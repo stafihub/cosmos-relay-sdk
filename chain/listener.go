@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/cosmos/cosmos-sdk/types"
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
@@ -27,8 +28,13 @@ type Listener struct {
 	router             *core.Router
 	log                log.Logger
 	distributionAddStr string
+	blockResults       chan *BlockResult
 	stopChan           <-chan struct{}
 	sysErrChan         chan<- error
+}
+type BlockResult struct {
+	Height uint64
+	Txs    []*types.TxResponse
 }
 
 func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, conn *Connection, log log.Logger, stopChan <-chan struct{}, sysErr chan<- error) *Listener {
@@ -49,6 +55,7 @@ func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, c
 		log:                log,
 		stopChan:           stopChan,
 		sysErrChan:         sysErr,
+		blockResults:       make(chan *BlockResult, 4096),
 	}
 }
 
@@ -82,13 +89,20 @@ func (l *Listener) start() error {
 	}()
 
 	go func() {
-		err := l.pollBlocks()
+		err := l.dealBlocks()
 		if err != nil {
-			l.log.Error("Polling blocks failed", "err", err)
+			l.log.Error("Dealling blocks failed", "err", err)
 			l.sysErrChan <- err
 		}
 	}()
 
+	go func() {
+		err := l.fetchBlocks()
+		if err != nil {
+			l.log.Error("Fetching blocks failed", "err", err)
+			l.sysErrChan <- err
+		}
+	}()
 	return nil
 }
 
@@ -114,9 +128,50 @@ func (l *Listener) pollEra() error {
 	}
 }
 
-func (l *Listener) pollBlocks() error {
+func (l *Listener) fetchBlocks() error {
 	var willDealBlock = l.startBlock
-	var retry = BlockRetryLimit
+	poolClient, err := l.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
+	retry := 0
+	for {
+		select {
+		case <-l.stopChan:
+			l.log.Info("fetchBlocks receive stop chan, will stop")
+			return nil
+		default:
+			if retry > BlockRetryLimit {
+				return fmt.Errorf("fetchBlocks reach retry limit ,symbol: %s", l.symbol)
+			}
+			latestBlk, err := poolClient.GetCurrentBlockHeight()
+			if err != nil {
+				l.log.Warn("Failed to fetch latest blockNumber", "err", err)
+				retry++
+				time.Sleep(BlockRetryInterval)
+				continue
+			}
+			if latestBlk < BlockConfirmNumber {
+				l.log.Warn("latest blockNumber abnoumal", "latestBlk", latestBlk)
+				retry++
+				time.Sleep(BlockRetryInterval)
+				continue
+			}
+
+			willFinalBlock := latestBlk - BlockConfirmNumber
+			for ; willDealBlock <= uint64(willFinalBlock); willDealBlock++ {
+				txs, err := poolClient.GetBlockTxsWithParseErrSkip(int64(willDealBlock))
+				if err != nil {
+					return err
+				}
+				l.blockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
+			}
+			retry = 0
+		}
+	}
+}
+
+func (l *Listener) dealBlocks() error {
 	poolClient, err := l.conn.GetOnePoolClient()
 	if err != nil {
 		return err
@@ -124,45 +179,31 @@ func (l *Listener) pollBlocks() error {
 	for {
 		select {
 		case <-l.stopChan:
-			l.log.Info("pollBlocks receive stop chan, will stop")
+			l.log.Info("dealBlocks receive stop chan, will stop")
 			return nil
-		default:
-			if retry <= 0 {
-				return fmt.Errorf("pollBlocks reach retry limit ,symbol: %s", l.symbol)
-			}
+		case blockResult := <-l.blockResults:
 
-			latestBlk, err := poolClient.GetCurrentBlockHeight()
-			if err != nil {
-				l.log.Error("Failed to fetch latest blockNumber", "err", err)
-				retry--
-				time.Sleep(BlockRetryInterval)
-				continue
-			}
-			// Sleep if the block we want comes after the most recently finalized block
-			if int64(willDealBlock)+BlockConfirmNumber > latestBlk {
-				if willDealBlock%100 == 0 {
-					l.log.Trace("Block not yet finalized", "target", willDealBlock, "finalBlk", latestBlk)
+			retry := 0
+			for {
+				if retry > BlockRetryLimit {
+					return fmt.Errorf("dealBlocks reach retry limit ,symbol: %s", l.symbol)
 				}
-				time.Sleep(BlockRetryInterval)
-				continue
-			}
+				err = l.processBlockResult(poolClient, blockResult)
+				if err != nil {
+					l.log.Error("Failed to process results in block", "block", blockResult.Txs, "err", err)
+					retry++
+					time.Sleep(BlockRetryInterval)
+					continue
+				}
 
-			err = l.processBlockEvents(int64(willDealBlock))
-			if err != nil {
-				l.log.Error("Failed to process events in block", "block", willDealBlock, "err", err)
-				retry--
-				time.Sleep(BlockRetryInterval)
-				continue
-			}
+				// Write to blockstore
+				err = l.blockstore.StoreBlock(new(big.Int).SetUint64(blockResult.Height))
+				if err != nil {
+					l.log.Error("Failed to write to blockstore", "err", err)
+				}
 
-			// Write to blockstore
-			err = l.blockstore.StoreBlock(new(big.Int).SetUint64(willDealBlock))
-			if err != nil {
-				l.log.Error("Failed to write to blockstore", "err", err)
+				retry = 0
 			}
-			willDealBlock++
-
-			retry = BlockRetryLimit
 		}
 	}
 }

@@ -21,20 +21,8 @@ func init() {
 	done()
 }
 
-func (l *Listener) processBlockEvents(currentBlock int64) error {
-	if currentBlock%100 == 0 {
-		l.log.Debug("processEvents", "blockNum", currentBlock)
-	}
-
-	poolClient, err := l.conn.GetOnePoolClient()
-	if err != nil {
-		return err
-	}
-	txs, err := poolClient.GetBlockTxsWithParseErrSkip(currentBlock)
-	if err != nil {
-		return err
-	}
-	for _, tx := range txs {
+func (l *Listener) processBlockResult(poolClient *hubClient.Client, blockResult *BlockResult) error {
+	for _, tx := range blockResult.Txs {
 		err := l.processTx(poolClient, tx)
 		if err != nil {
 			return err
