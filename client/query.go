@@ -553,6 +553,14 @@ func (c *Client) QueryVotes(proposalId uint64, height int64, page, limit uint64,
 }
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
+	if strings.EqualFold(c.Ctx().ChainID, "carbon-testnet-42069") {
+		blockNumber, _, err := c.GetCurrentBLockAndTimestamp()
+		if err != nil {
+			return 0, err
+		}
+		return blockNumber, nil
+	}
+
 	if int64(era) < offset {
 		return 0, fmt.Errorf("era: %d is less than offset: %d", era, offset)
 	}
