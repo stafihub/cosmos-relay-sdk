@@ -159,12 +159,22 @@ func (l *Listener) fetchBlocks() error {
 			}
 
 			willFinalBlock := latestBlk - BlockConfirmNumber
+			if willDealBlock > uint64(willFinalBlock) {
+				time.Sleep(BlockRetryInterval)
+				continue
+			}
+
 			for ; willDealBlock <= uint64(willFinalBlock); willDealBlock++ {
-				txs, err := poolClient.GetBlockTxsWithParseErrSkip(int64(willDealBlock))
-				if err != nil {
-					return err
+				for i := 0; i < BlockRetryLimit; i++ {
+					txs, err := poolClient.GetBlockTxsWithParseErrSkip(int64(willDealBlock))
+					if err != nil {
+						l.log.Warn("GetBlockTxsWithParseErrSkip failed", "block", willDealBlock)
+						time.Sleep(BlockRetryInterval)
+						continue
+					}
+					l.blockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
+					break
 				}
-				l.blockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
 			}
 			retry = 0
 		}
