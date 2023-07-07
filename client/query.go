@@ -654,6 +654,10 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 				nextQueryBlockNumber = block.Block.Height - int64(float64(seconds)/blockSeconds)
 			}
 
+			if nextQueryBlockNumber <= preBlockNumber {
+				nextQueryBlockNumber = preBlockNumber + 1
+			}
+
 			block, err = c.QueryBlock(nextQueryBlockNumber)
 			if err != nil {
 				return 0, err
@@ -671,6 +675,9 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 				nextQueryBlockNumber = block.Block.Height + 1
 			} else {
 				nextQueryBlockNumber = block.Block.Height + int64(float64(seconds)/blockSeconds)
+			}
+			if nextQueryBlockNumber >= afterBlockNumber {
+				nextQueryBlockNumber = afterBlockNumber - 1
 			}
 
 			block, err = c.QueryBlock(nextQueryBlockNumber)
