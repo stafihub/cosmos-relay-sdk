@@ -853,7 +853,7 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		var res *types.TxResponse
 		res, err = poolClient.QueryTxByHash(txHashHexStr)
 		if err != nil || res.Empty() || res.Code != 0 {
-			h.log.Debug(fmt.Sprintf(
+			h.log.Warn(fmt.Sprintf(
 				"checkAndSend QueryTxByHash failed. will rebroadcast after %f second",
 				BlockRetryInterval.Seconds()),
 				"tx hash", txHashHexStr,
@@ -862,8 +862,24 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 			//broadcast if not on chain
 			_, err = poolClient.BroadcastTx(txBts)
 			if err != nil && err != errType.ErrTxInMempoolCache {
-				h.log.Debug("checkAndSend BroadcastTx failed  will retry", "err", err)
+				h.log.Warn("checkAndSend BroadcastTx failed  will retry", "err", err)
 			}
+
+			poolBalanceStr := ""
+			poolBalance, err := poolClient.QueryBalance(poolAddress, poolClient.GetDenom(), 0)
+			if err != nil {
+				h.log.Warn("queryBalance err", "err", err)
+			} else {
+				poolBalanceStr = poolBalance.Balance.String()
+			}
+			currentBlock, currentTimestamp, err := poolClient.GetCurrentBLockAndTimestamp()
+			if err != nil {
+				h.log.Warn("GetCurrentBLockAndTimestamp err", "err", err)
+			}
+
+			h.log.Info("rpc info", "poolBalance", poolBalanceStr, "currentBlock", currentBlock,
+				"currentTimestamp", currentTimestamp)
+
 			time.Sleep(BlockRetryInterval)
 			retry--
 			continue
