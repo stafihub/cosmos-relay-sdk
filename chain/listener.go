@@ -168,7 +168,7 @@ func (l *Listener) fetchBlocks() error {
 				for i := 0; i < BlockRetryLimit; i++ {
 					txs, err := poolClient.GetBlockTxsWithParseErrSkip(int64(willDealBlock))
 					if err != nil {
-						l.log.Warn("GetBlockTxsWithParseErrSkip failed", "block", willDealBlock)
+						l.log.Warn("GetBlockTxsWithParseErrSkip failed", "block", willDealBlock, "err", err.Error())
 						time.Sleep(BlockRetryInterval)
 						continue
 					}
