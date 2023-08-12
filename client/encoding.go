@@ -9,7 +9,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
-	"github.com/cosmos/cosmos-sdk/x/authz/module"
+	authz "github.com/cosmos/cosmos-sdk/x/authz/module"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	"github.com/cosmos/cosmos-sdk/x/capability"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
@@ -23,9 +23,9 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
 
-	interChain "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
-	ibcTransfer "github.com/cosmos/ibc-go/v3/modules/apps/transfer"
-	ibcCore "github.com/cosmos/ibc-go/v3/modules/core"
+	interChain "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts"
+	ibcTransfer "github.com/cosmos/ibc-go/v7/modules/apps/transfer"
+	ibcCore "github.com/cosmos/ibc-go/v7/modules/core"
 )
 
 // EncodingConfig specifies the concrete encoding types to use for a given app.

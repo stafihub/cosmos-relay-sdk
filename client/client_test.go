@@ -9,6 +9,7 @@ import (
 
 	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/JFJun/go-substrate-crypto/ss58"
+	"github.com/cometbft/cometbft/crypto"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
@@ -19,7 +20,6 @@ import (
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/tendermint/crypto"
 )
 
 var client *hubClient.Client
@@ -42,9 +42,11 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
-	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
+	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
+	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub dev"))
-	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "ufis", []string{"https://public-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub main"))
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
 	if err != nil {
 		panic(err)
@@ -386,7 +388,7 @@ func TestMemo(t *testing.T) {
 
 func TestToAddress(t *testing.T) {
 
-	address, err := types.AccAddressFromHex("76ec5242a51191b37bc1043d894c3ddce66e4020")
+	address, err := types.AccAddressFromHexUnsafe("76ec5242a51191b37bc1043d894c3ddce66e4020")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -554,11 +556,19 @@ func TestQueryDelegations(t *testing.T) {
 func TestGetTxs(t *testing.T) {
 	initClient()
 
-	filter := []string{fmt.Sprintf("message.action='%s'", "/cosmos.bank.v1beta1.MsgMultiSend"), "message.module='bank'"}
-	txs, err := client.GetTxs(filter, 1, 2, "asc")
+	txs, err := client.GetBlockTxsWithParseErrSkip(8711350)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(txs.Count, txs.PageTotal, txs.PageNumber, txs.Limit, len(txs.Txs))
+	t.Log(txs)
+	t.Log(len(txs))
 
+	for _, tx := range txs {
+		for _, e := range tx.Events {
+			for _, a := range e.Attributes {
+
+				t.Log(e.Type, a.Key, a.Value)
+			}
+		}
+	}
 }

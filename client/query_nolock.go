@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
+
+	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
@@ -10,10 +12,9 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	xSlashingTypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
 // no 0x prefix
@@ -412,7 +413,7 @@ func (c *Client) GetLastTxIncludeWithdrawNoLock(delegatorAddr string) (string, s
 
 func (c *Client) GetBlockResultsNoLock(height int64) (*ctypes.ResultBlockResults, error) {
 	cc, err := c.retry(func() (interface{}, error) {
-		return c.clientCtx.Client.BlockResults(context.Background(), &height)
+		return (*c.GetRpcClient()).BlockResults(context.Background(), &height)
 	})
 	if err != nil {
 		return nil, err

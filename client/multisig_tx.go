@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	tendermintTypes "github.com/cometbft/cometbft/types"
 	clientTx "github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	kMultiSig "github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
@@ -17,7 +18,6 @@ import (
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/spf13/cobra"
 	"github.com/stafihub/rtoken-relay-core/common/core"
-	tendermintTypes "github.com/tendermint/tendermint/types"
 )
 
 var ErrNoMsgs = errors.New("no tx msgs")
@@ -403,7 +403,10 @@ func (c *Client) GenMultiSigRawDeleRewardTxWithRewardsWithMemo(delAddr types.Acc
 // c.clientCtx.FromAddress must be multi sig address,no need sequence
 func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
@@ -411,7 +414,7 @@ func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 		WithGas(1500000).
 		WithSimulateAndExecute(true)
 
-	txBuilderRaw, err := clientTx.BuildUnsignedTx(txf, msgs...)
+	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +424,10 @@ func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 // c.clientCtx.FromAddress must be multi sig address,no need sequence
 func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byte, error) {
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
@@ -429,7 +435,7 @@ func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byt
 		WithGas(1500000).
 		WithSimulateAndExecute(true)
 
-	txBuilderRaw, err := clientTx.BuildUnsignedTx(txf, msgs...)
+	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +449,10 @@ func (c *Client) SignMultiSigRawTxWithSeq(sequence uint64, rawTx []byte, fromSub
 	defer done()
 
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithSequence(sequence).
 		WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON) //multi sig need this mod
@@ -475,7 +484,12 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 		return nil, nil, fmt.Errorf("%q must be of type %s: %s",
 			c.Ctx().FromName, keyring.TypeMulti, multisigInfo.GetType())
 	}
-	multiSigPub := multisigInfo.GetPubKey().(*kMultiSig.LegacyAminoPubKey)
+
+	pubkey, err := multisigInfo.GetPubKey()
+	if err != nil {
+		return
+	}
+	multiSigPub := pubkey.(*kMultiSig.LegacyAminoPubKey)
 
 	tx, err := c.Ctx().TxConfig.TxJSONDecoder()(rawTx)
 	if err != nil {

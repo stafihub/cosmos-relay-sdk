@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	ctypes "github.com/cometbft/cometbft/rpc/core/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/query"
@@ -17,11 +18,10 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	xSlashingTypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"
-	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 )
 
 const retryLimit = 600
@@ -514,7 +514,7 @@ func (c *Client) GetBlockResults(height int64) (*ctypes.ResultBlockResults, erro
 	defer done()
 
 	cc, err := c.retry(func() (interface{}, error) {
-		return c.clientCtx.Client.BlockResults(context.Background(), &height)
+		return (*c.GetRpcClient()).BlockResults(context.Background(), &height)
 	})
 	if err != nil {
 		return nil, err
