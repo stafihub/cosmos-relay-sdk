@@ -43,9 +43,9 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
-	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
+	client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub dev"))
-	client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
+	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "ufis", []string{"https://public-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub main"))
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
 	if err != nil {
