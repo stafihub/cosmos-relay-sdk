@@ -832,6 +832,9 @@ func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
 	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedTxType int) error {
+	if len(txBts) == 0 {
+		return fmt.Errorf("tx empty, pool: %s", poolAddress.String())
+	}
 
 	h.log.Debug("checkAndSend", "txBts", hex.EncodeToString(txBts))
 	txHashHexStr := hex.EncodeToString(txHash)
