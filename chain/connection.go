@@ -101,7 +101,7 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 	var key keyring.Keyring
 	if len(option.PoolNameSubKey) != 0 {
 		fmt.Printf("Will open %s wallet from <%s>. \nPlease ", cfg.Name, cfg.KeystorePath)
-		key, err = keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin)
+		key, err = keyring.New(types.KeyringServiceName(), keyring.BackendFile, cfg.KeystorePath, os.Stdin, hubClient.MakeEncodingConfig().Marshaler)
 		if err != nil {
 			return nil, err
 		}
@@ -123,10 +123,14 @@ func NewConnection(cfg *config.RawChainConfig, option ConfigOption, log log.Logg
 			return nil, err
 		}
 		done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
-		poolAddress := poolInfo.GetAddress().String()
-		poolClients[poolAddress] = poolClient
-		poolSubkey[poolAddress] = subKeyName
-		if _, exist := option.PoolAddressThreshold[poolAddress]; !exist {
+		poolAddress, err := poolInfo.GetAddress()
+		if err != nil {
+			return nil, err
+		}
+		poolAddressStr := poolAddress.String()
+		poolClients[poolAddressStr] = poolClient
+		poolSubkey[poolAddressStr] = subKeyName
+		if _, exist := option.PoolAddressThreshold[poolAddressStr]; !exist {
 			return nil, fmt.Errorf("no pool detail info in stafihub, pool: %s", poolAddress)
 		}
 		done()

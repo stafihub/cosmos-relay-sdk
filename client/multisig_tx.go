@@ -411,7 +411,7 @@ func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 		WithGas(1500000).
 		WithSimulateAndExecute(true)
 
-	txBuilderRaw, err := clientTx.BuildUnsignedTx(txf, msgs...)
+	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byt
 		WithGas(1500000).
 		WithSimulateAndExecute(true)
 
-	txBuilderRaw, err := clientTx.BuildUnsignedTx(txf, msgs...)
+	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +475,12 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 		return nil, nil, fmt.Errorf("%q must be of type %s: %s",
 			c.Ctx().FromName, keyring.TypeMulti, multisigInfo.GetType())
 	}
-	multiSigPub := multisigInfo.GetPubKey().(*kMultiSig.LegacyAminoPubKey)
+
+	pubkey, err := multisigInfo.GetPubKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	multiSigPub := pubkey.(*kMultiSig.LegacyAminoPubKey)
 
 	tx, err := c.Ctx().TxConfig.TxJSONDecoder()(rawTx)
 	if err != nil {

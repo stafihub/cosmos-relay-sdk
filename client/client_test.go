@@ -39,10 +39,10 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
-	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
+	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub dev"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"http://127.0.0.1:16657"})
@@ -386,7 +386,7 @@ func TestMemo(t *testing.T) {
 
 func TestToAddress(t *testing.T) {
 
-	address, err := types.AccAddressFromHex("76ec5242a51191b37bc1043d894c3ddce66e4020")
+	address, err := types.AccAddressFromHexUnsafe("76ec5242a51191b37bc1043d894c3ddce66e4020")
 	if err != nil {
 		t.Fatal(err)
 	}

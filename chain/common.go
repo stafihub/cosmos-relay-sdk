@@ -17,7 +17,7 @@ import (
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	icatypes "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts/types"
+	icatypes "github.com/cosmos/ibc-go/v5/modules/apps/27-interchain-accounts/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"

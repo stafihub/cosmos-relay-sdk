@@ -288,7 +288,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
-		stafiHubXLedgerTypes.TxTypeReserved,
+		stafiHubXLedgerTypes.TxTypeWithdrawAddressSend,
 		0,
 		[]types.Msg{&msg})
 	if err != nil {
@@ -300,7 +300,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		Denom:  snap.Denom,
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
-		TxType: stafiHubXLedgerTypes.TxTypeReserved,
+		TxType: stafiHubXLedgerTypes.TxTypeWithdrawAddressSend,
 		Factor: 0,
 		Msgs:   msgs,
 	}

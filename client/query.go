@@ -17,7 +17,7 @@ import (
 	xAuthTypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
-	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types"
+	xGovTypes "github.com/cosmos/cosmos-sdk/x/gov/types/v1"
 	xSlashingTypes "github.com/cosmos/cosmos-sdk/x/slashing/types"
 	xStakeTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/stafihub/rtoken-relay-core/common/core"

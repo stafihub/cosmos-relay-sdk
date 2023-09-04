@@ -64,7 +64,7 @@ func (c *Client) ConstructAndSignTx(msgs ...types.Msg) ([]byte, error) {
 	}
 	txf = txf.WithGas(adjusted)
 
-	txBuilderRaw, err := clientTx.BuildUnsignedTx(txf, msgs...)
+	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
 	if err != nil {
 		return nil, err
 	}

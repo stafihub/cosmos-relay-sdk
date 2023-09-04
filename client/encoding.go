@@ -23,9 +23,9 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
 
-	interChain "github.com/cosmos/ibc-go/v3/modules/apps/27-interchain-accounts"
-	ibcTransfer "github.com/cosmos/ibc-go/v3/modules/apps/transfer"
-	ibcCore "github.com/cosmos/ibc-go/v3/modules/core"
+	interChain "github.com/cosmos/ibc-go/v5/modules/apps/27-interchain-accounts"
+	ibcTransfer "github.com/cosmos/ibc-go/v5/modules/apps/transfer"
+	ibcCore "github.com/cosmos/ibc-go/v5/modules/core"
 )
 
 // EncodingConfig specifies the concrete encoding types to use for a given app.
