@@ -309,6 +309,55 @@ func (h *Listener) mustGetBondRecordFromStafiHub(denom, txHash string) (bondReco
 	}
 }
 
+// will wait until interchain tx status ready
+func (h *Listener) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHubXLedgerTypes.InterchainTxStatus, error) {
+	var err error
+	var status stafiHubXLedgerTypes.InterchainTxStatus
+	for {
+		status, err = h.getInterchainTxStatusFromStafiHub(propId)
+		if err != nil {
+			h.log.Warn("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
+			err = fmt.Errorf("status not match, status: %s", status)
+			h.log.Warn("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		return status, nil
+	}
+}
+
+func (h *Listener) getInterchainTxStatusFromStafiHub(proposalId string) (s stafiHubXLedgerTypes.InterchainTxStatus, err error) {
+	getInterchainTxStatus := core.ParamGetInterchainTxStatus{
+		PropId: proposalId,
+		Status: make(chan stafiHubXLedgerTypes.InterchainTxStatus, 1),
+	}
+	msg := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonGetInterchainTxStatus,
+		Content:     getInterchainTxStatus,
+	}
+	err = h.router.Send(&msg)
+	if err != nil {
+		return stafiHubXLedgerTypes.InterchainTxStatusUnspecified, err
+	}
+
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+
+	h.log.Debug("wait getInterchainTxStatusFromStafiHub from stafihub", "rSymbol", h.conn.symbol)
+	select {
+	case <-timer.C:
+		return stafiHubXLedgerTypes.InterchainTxStatusUnspecified, fmt.Errorf("getInterchainTxStatus from stafihub timeout")
+	case status := <-getInterchainTxStatus.Status:
+		return status, nil
+	}
+}
+
 func (h *Listener) getBondRecordFromStafiHub(param *core.ParamGetBondRecord) (bondRecord *stafiHubXLedgerTypes.BondRecord, err error) {
 	getBondRecord := core.ParamGetBondRecord{
 		Denom:      param.Denom,
