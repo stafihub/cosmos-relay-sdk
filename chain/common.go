@@ -1106,7 +1106,7 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHub
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
 			err = fmt.Errorf("status not match, status: %s", status)
-			h.log.Warn("getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
+			h.log.Warn("handler getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
 			continue
 		}

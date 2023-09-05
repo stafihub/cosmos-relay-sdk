@@ -37,6 +37,7 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 	if tx.Code != 0 || tx.Empty() {
 		return nil
 	}
+
 	for _, log := range tx.Logs {
 		for _, event := range log.Events {
 			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, false, "", "")
@@ -463,13 +464,21 @@ func (l Listener) SubmitProposalExeNativeAndLsmLiquidityBond(proposalExeNativeAn
 		}
 
 		for {
-			_, err := l.mustGetInterchainTxStatusFromStafiHub(proposal.PropId)
+			status, err := l.mustGetInterchainTxStatusFromStafiHub(proposal.PropId)
 			if err != nil {
-				l.log.Warn("mustGetBondRecordFromStafiHub failed, will retry", "err", err)
+				l.log.Warn("mustGetInterchainTxStatusFromStafiHub failed, will retry", "proposalId", proposal.PropId, "err", err)
 				time.Sleep(BlockRetryInterval)
 				continue
 			}
-			break
+
+			if status == xLedgerTypes.InterchainTxStatusSuccess {
+				break
+			} else if status == xLedgerTypes.InterchainTxStatusFailed {
+				return fmt.Errorf("InterchainTxStatusFromStafiHub status %s, proposalId: %s", status.String(), proposal.PropId)
+			}
+
+			return fmt.Errorf("unknown InterchainTxStatusFromStafiHub status %s, proposalId: %s", status.String(), proposal.PropId)
+
 		}
 	}
 	return nil
