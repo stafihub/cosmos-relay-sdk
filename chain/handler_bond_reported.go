@@ -205,6 +205,21 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eventBondReported core.EventBondReported) error {
 	h.log.Info("dealIcaPoolBondReportedEvent", "event", eventBondReported)
 
+	proposalId, err := h.mustGetLatestLsmProposalIdFromStafiHub()
+	if err != nil {
+		if err != ErrNotFound {
+			return err
+		}
+	} else {
+		status, err := h.mustGetInterchainTxStatusFromStafiHub(proposalId)
+		if err != nil {
+			return err
+		}
+		if status != stafiHubXLedgerTypes.InterchainTxStatusSuccess {
+			return fmt.Errorf("lsm proposalId %s not success", proposalId)
+		}
+	}
+
 	snap := eventBondReported.Snapshot
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())

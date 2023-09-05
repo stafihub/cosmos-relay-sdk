@@ -39,6 +39,7 @@ const (
 var (
 	ErrNoOutPuts            = errors.New("outputs length is zero")
 	ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
+	ErrNotFound             = errors.New("NotFound")
 )
 
 var (
@@ -1113,6 +1114,30 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHub
 	}
 }
 
+// if not found return "NotFound",nil
+func (h *Handler) mustGetLatestLsmProposalIdFromStafiHub() (string, error) {
+	var err error
+	var s string
+	for {
+		s, err = h.getLatestLsmBondProposalIdFromStafiHub()
+		if err != nil {
+			h.log.Warn("mustGetLatestLsmProposalIdFromStafiHub failed, will retry.", "err", err)
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		if len(s) == 0 {
+			h.log.Warn("mustGetLatestLsmProposalIdFromStafiHub failed, will retry.")
+			time.Sleep(BlockRetryInterval)
+			continue
+		}
+		if s == "NotFound" {
+			return "", ErrNotFound
+		}
+
+		return s, nil
+	}
+}
+
 func (h *Handler) getSignatureFromStafiHub(param *core.ParamSubmitSignature) (signatures [][]byte, err error) {
 	getSignatures := core.ParamGetSignatures{
 		Denom:  param.Denom,
@@ -1176,6 +1201,33 @@ func (h *Handler) getInterchainTxStatusFromStafiHub(proposalId string) (s stafiH
 	case <-timer.C:
 		return stafiHubXLedgerTypes.InterchainTxStatusUnspecified, fmt.Errorf("getInterchainTxStatus from stafihub timeout")
 	case status := <-getInterchainTxStatus.Status:
+		return status, nil
+	}
+}
+
+func (h *Handler) getLatestLsmBondProposalIdFromStafiHub() (string, error) {
+	c := core.ParamGetLatestLsmBondProposalId{
+		PropId: make(chan string, 1),
+	}
+	msg := core.Message{
+		Source:      h.conn.symbol,
+		Destination: core.HubRFIS,
+		Reason:      core.ReasonGetLatestLsmBondProposalId,
+		Content:     c,
+	}
+	err := h.router.Send(&msg)
+	if err != nil {
+		return "", err
+	}
+
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+
+	h.log.Debug("wait getLatestLsmBondProposalIdFromStafiHub from stafihub", "rSymbol", h.conn.symbol)
+	select {
+	case <-timer.C:
+		return "", fmt.Errorf("getLatestLsmBondProposalIdFromStafiHub from stafihub timeout")
+	case status := <-c.PropId:
 		return status, nil
 	}
 }
