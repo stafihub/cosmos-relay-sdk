@@ -162,7 +162,6 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 	nativeBondAmount := types.ZeroInt()
 	lsmBondAmount := types.ZeroInt()
 	poolRecipient := ""
-	var poolAddress types.AccAddress
 	msgs := make([]types.Msg, 0)
 
 	for _, msg := range msgSends {
@@ -178,14 +177,6 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 		}
 		if len(poolRecipient) == 0 {
 			poolRecipient = recipient
-			done := core.UseSdkConfigContext(client.GetAccountPrefix())
-			address, err := types.AccAddressFromBech32(poolRecipient)
-			if err != nil {
-				done()
-				return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, fmt.Errorf("pool recipient fmt error: %s", poolRecipient)
-			}
-			poolAddress = address
-			done()
 		}
 
 		for _, transferCoin := range transferCoins {
@@ -237,7 +228,7 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 
 				lsmBondAmount = lsmBondAmount.Add(shareToTokenAmount)
 
-				msgs = append(msgs, xLedgerTypes.NewMsgRedeemTokensForShares(poolAddress, transferCoin))
+				msgs = append(msgs, &xLedgerTypes.MsgRedeemTokensForShares{DelegatorAddress: poolRecipient, Amount: transferCoin})
 
 			default:
 				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
