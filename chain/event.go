@@ -382,6 +382,7 @@ func (l Listener) SubmitProposalExeNativeAndLsmLiquidityBond(proposalExeNativeAn
 	}
 
 	if len(proposalExeNativeAndLsmLiquidityBond.Msgs) > 0 {
+		done := core.UseSdkConfigContext("stafi")
 		proposal, err := xLedgerTypes.NewExecuteNativeAndLsmBondProposal(
 			types.AccAddress{},
 			proposalExeNativeAndLsmLiquidityBond.Denom,
@@ -393,8 +394,10 @@ func (l Listener) SubmitProposalExeNativeAndLsmLiquidityBond(proposalExeNativeAn
 			proposalExeNativeAndLsmLiquidityBond.State,
 			proposalExeNativeAndLsmLiquidityBond.Msgs)
 		if err != nil {
+			done()
 			return err
 		}
+		done()
 
 		for {
 			status, err := l.mustGetInterchainTxStatusFromStafiHub(proposal.PropId)

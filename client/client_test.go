@@ -3,12 +3,13 @@ package client_test
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"github.com/JFJun/go-substrate-crypto/ss58"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
@@ -19,6 +20,7 @@ import (
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
+	xLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/tendermint/crypto"
 )
@@ -26,12 +28,12 @@ import (
 var client *hubClient.Client
 
 func initClient() {
-	// key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"))
-	// if err != nil {
-	// 	panic(err)
-	// }
+	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"), hubClient.MakeEncodingConfig().Marshaler)
+	if err != nil {
+		panic(err)
+	}
 
-	var err error
+	// var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc-cosmoshub.keplr.app:443"},log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
@@ -40,7 +42,8 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(key, "key1", "0.001stake", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
@@ -305,6 +308,23 @@ func TestDecodeAddress(t *testing.T) {
 	}
 	done()
 	t.Log(hex.EncodeToString(address2))
+}
+func TestZeroAddress(t *testing.T) {
+	initClient()
+	msgs := make([]types.Msg, 0)
+	coins, err := types.ParseCoinsNormalized("1000cosmosvaloper129kf5egy80e8me93lg3h5lk54kp0tle7w9npre/1,1000cosmosvaloper129kf5egy80e8me93lg3h5lk54kp0tle7w9npre/2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	msgs = append(msgs, &xLedgerTypes.MsgRedeemTokensForShares{DelegatorAddress: "cosmos1hq5z5a43wn29vldvr48fel86ftuv60q2ty9arf0wydnc7885m2fqs9gjgt", Amount: coins[0]})
+	msgs = append(msgs, &xLedgerTypes.MsgRedeemTokensForShares{DelegatorAddress: "cosmos1hq5z5a43wn29vldvr48fel86ftuv60q2ty9arf0wydnc7885m2fqs9gjgt", Amount: coins[1]})
+
+	tx, err := client.ConstructAndSignTx(msgs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(tx)
 }
 
 func TestClient_Sign(t *testing.T) {

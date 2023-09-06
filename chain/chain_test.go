@@ -101,6 +101,7 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(txs)
+
 }
 
 func TestGetLatestRedelegateTx(t *testing.T) {
