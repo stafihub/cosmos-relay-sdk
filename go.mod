@@ -9,7 +9,7 @@ require (
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
 	github.com/stafihub/rtoken-relay-core/common v0.0.0-20230905030353-9718b7787648
-	github.com/stafihub/stafihub v0.4.4-0.20230905025619-b06648957533
+	github.com/stafihub/stafihub v0.4.4-0.20230906020803-e23ca4d2b9f0
 	github.com/stretchr/testify v1.8.2
 	github.com/tendermint/tendermint v0.34.28
 )
@@ -68,6 +68,7 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.11.0 // indirect
+	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect

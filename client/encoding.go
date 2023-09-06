@@ -22,6 +22,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/slashing"
 	"github.com/cosmos/cosmos-sdk/x/staking"
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
+	ledger "github.com/stafihub/stafihub/x/ledger"
 
 	interChain "github.com/cosmos/ibc-go/v5/modules/apps/27-interchain-accounts"
 	ibcTransfer "github.com/cosmos/ibc-go/v5/modules/apps/transfer"
@@ -61,6 +62,8 @@ func MakeEncodingConfig() EncodingConfig {
 		ibcTransfer.AppModuleBasic{},
 		ibcCore.AppModuleBasic{},
 		interChain.AppModuleBasic{},
+		// stafi
+		ledger.AppModuleBasic{},
 	)
 	moduleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	moduleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)

@@ -44,12 +44,12 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 		return nil
 	}
 
-	memoStr, msgSends, err := parseMemoAndMsgs(poolClient, tx.Tx.GetValue())
+	memoStr, msgSends, err := ParseMemoAndMsgs(poolClient, tx.Tx.GetValue())
 	if err != nil {
 		return err
 	}
 
-	retMemoType, retStafiAddress, retRecoverTxHash := checkMemo(memoStr)
+	retMemoType, retStafiAddress, retRecoverTxHash := CheckMemo(memoStr)
 
 	shouldSkip, bondState, pool, nativeBondAmount, lsmBondAmount, msgs, err := l.checkMsgs(poolClient, msgSends, tx.Height, retMemoType)
 	if err != nil {
@@ -80,7 +80,7 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 			l.log.Warn("received token with recover memo, but QueryTxByHash failed", "txHash", tx.TxHash, "err", err)
 			return nil
 		}
-		_, recoverMsgSends, err := parseMemoAndMsgs(poolClient, recoverTxRes.Tx.GetValue())
+		_, recoverMsgSends, err := ParseMemoAndMsgs(poolClient, recoverTxRes.Tx.GetValue())
 		if err != nil {
 			return err
 		}
@@ -262,7 +262,7 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 	return true, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
 }
 
-func parseMemoAndMsgs(client *hubClient.Client, txValue []byte) (string, []*xBankTypes.MsgSend, error) {
+func ParseMemoAndMsgs(client *hubClient.Client, txValue []byte) (string, []*xBankTypes.MsgSend, error) {
 	msgSends := make([]*xBankTypes.MsgSend, 0)
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	defer func() {
@@ -292,7 +292,7 @@ func parseMemoAndMsgs(client *hubClient.Client, txValue []byte) (string, []*xBan
 	return memoStr, msgSends, nil
 }
 
-func checkMemo(memoStr string) (retMomoType uint8, retStafiAddress string, retRecoverTxHash string) {
+func CheckMemo(memoStr string) (retMomoType uint8, retStafiAddress string, retRecoverTxHash string) {
 
 	if len(memoStr) == 0 {
 		return 0, "", ""
