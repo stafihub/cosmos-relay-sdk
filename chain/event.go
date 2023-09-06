@@ -2,6 +2,7 @@ package chain
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -15,6 +16,11 @@ import (
 
 var zeroAddress = types.AccAddress{0x0000000000000000000000000000000000000000}
 var zeroStafiAddressStr string
+
+var (
+	liquiditybondMemo = uint8(1)
+	recoverMemo       = uint8(2)
+)
 
 func init() {
 	done := core.UseSdkConfigContext("stafi")
@@ -38,358 +44,294 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 		return nil
 	}
 
-	for _, log := range tx.Logs {
-		for _, event := range log.Events {
-			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, false, "", "")
-			if err != nil {
-				return err
-			}
-		}
+	memoStr, msgSends, err := parseMemoAndMsgs(poolClient, tx.Tx.GetValue())
+	if err != nil {
+		return err
 	}
-	return nil
-}
 
-// when isRecover is true, bonder and signer must have value, bonder is a stafi address of user, signer is the signer of recover tx
-func (l *Listener) processStringEvents(client *hubClient.Client, txValue []byte, height int64, txHash string, event types.StringEvent, isRecover bool, bonder, signer string) error {
-	//check height of cosmoshub-4, old tx shouldn't be dealed
-	if l.conn.chainId == "cosmoshub-4" && height < 11665685 {
-		l.log.Warn("find old tx, shouldn't be dealed", "txHash", txHash, "event", event, "height", height)
+	retMemoType, retStafiAddress, retRecoverTxHash := checkMemo(memoStr)
+
+	shouldSkip, bondState, pool, nativeBondAmount, lsmBondAmount, msgs, err := l.checkMsgs(poolClient, msgSends, tx.Height, retMemoType)
+	if err != nil {
+		return err
+	}
+	if shouldSkip {
 		return nil
 	}
 
-	switch {
-	case event.Type == xBankTypes.EventTypeTransfer:
-		// not support multisend now
-		if len(event.Attributes) != 3 {
-			l.log.Debug("got multisend transfer event", "txHash", txHash, "event", event)
-			return nil
-		}
-		recipient := event.Attributes[0].Value
-		// skip if not to this pool
-		if !l.hasPool(recipient) {
-			return nil
-		}
-		from := event.Attributes[1].Value
-		amountStr := event.Attributes[2].Value
-
-		// skip reward event
-		if strings.EqualFold(from, l.distributionAddStr) {
-			return nil
-		}
-
-		transferCoin, err := types.ParseCoinNormalized(amountStr)
-		if err != nil {
-			return fmt.Errorf("amount format err, %s", err)
-		}
-
-		var bondCoin types.Coin
-		var shareCoin types.Coin
-		var isNativeBond bool
-		switch {
-		case transferCoin.GetDenom() == client.GetDenom():
-			bondCoin = transferCoin
-			isNativeBond = true
-		case strings.Contains(transferCoin.GetDenom(), "/"):
-			shareCoin = transferCoin
-			isNativeBond = false
-			splits := strings.Split(transferCoin.GetDenom(), "/")
-			if len(splits) != 2 {
-				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
-				return nil
-			}
-			valAddressStr := splits[0]
-
-			done := core.UseSdkConfigContext(client.GetAccountPrefix())
-			valAddress, err := types.ValAddressFromBech32(valAddressStr)
-			if err != nil {
-				done()
-				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
-				return nil
-			}
-			done()
-
-			targetVals, err := l.conn.GetPoolTargetValidators(recipient)
-			if err != nil {
-				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
-				return nil
-			}
-
-			isInTargetVals := false
-			for _, tVal := range targetVals {
-				if bytes.Equal(tVal, valAddress) {
-					isInTargetVals = true
-					break
-				}
-			}
-			if !isInTargetVals {
-				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
-				return nil
-			}
-
-			validatorInfoRes, err := client.QueryValidator(valAddressStr, height)
-			if err != nil {
-				return err
-			}
-
-			tokenAmount := validatorInfoRes.Validator.TokensFromShares(types.NewDecFromInt(transferCoin.Amount)).TruncateInt()
-			bondCoin = types.NewCoin(client.GetDenom(), tokenAmount)
-
-		default:
-			l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
-			return nil
-		}
-
-		done := core.UseSdkConfigContext(client.GetAccountPrefix())
-		var memoInTx string
-		tx, err := client.GetTxConfig().TxDecoder()(txValue)
-		if err != nil {
-			done()
-			return err
-		}
-
-		// only support one transfer msg in one tx
-		sendMsgNumber := 0
-		for _, msg := range tx.GetMsgs() {
-			if types.MsgTypeURL(msg) == types.MsgTypeURL((*xBankTypes.MsgSend)(nil)) {
-				sendMsgNumber++
-			}
-		}
-		if sendMsgNumber != 1 {
-			l.log.Debug("got multi send msgs in one tx", "txHash", txHash, "event", event)
-			done()
-			return nil
-		}
-
-		memoTx, ok := tx.(types.TxWithMemo)
-		if !ok {
-			done()
-			return fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txHash)
-		}
-		done()
-
-		memoInTx = memoTx.GetMemo()
-
-		if isRecover {
-			return l.dealRecover(client, recipient, from, signer, bonder, txHash, bondCoin, shareCoin, isNativeBond)
-		} else {
-			return l.dealMemo(client, memoInTx, recipient, from, txHash, bondCoin, shareCoin, isNativeBond)
-		}
-
-	default:
-		return nil
-	}
-}
-
-func (l Listener) dealRecover(poolClient *hubClient.Client, recipient, from, signer, bonder, txHash string, coin, shareToken types.Coin, isNativeBond bool) error {
-
-	var state xLedgerTypes.LiquidityBondState
-	bonderAddressStr := zeroStafiAddressStr
-	switch {
-	// check bond amount if it is a tx which will be recovered
-	case coin.IsLT(l.conn.leastBond):
-		l.log.Warn("got transfer event but less than leastBond", "txHash", txHash)
-		state = xLedgerTypes.LiquidityBondStateAmountUnmatch
-		//check signer of recover tx is the from of this tx event
-	case from != signer:
-		l.log.Warn("received token with recover memo, but from!=signer", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "signer", signer)
-		state = xLedgerTypes.LiquidityBondStateBonderUnmatch
-	default:
-		bonderAddressStr = bonder
-		state = xLedgerTypes.LiquidityBondStateVerifyOk
-	}
-
-	if isNativeBond {
+	if bondState != xLedgerTypes.LiquidityBondStateVerifyOk {
 		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
 			Denom:  string(l.symbol),
-			Bonder: bonderAddressStr,
-			Pool:   recipient,
-			Txhash: txHash,
-			Amount: coin.Amount,
-			State:  state,
+			Bonder: zeroStafiAddressStr,
+			Pool:   pool,
+			Txhash: tx.TxHash,
+			Amount: nativeBondAmount.Add(lsmBondAmount),
+			State:  bondState,
 		}
 		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-	} else {
+	}
 
-		msg := xLedgerTypes.MsgRedeemTokensForShares{
-			DelegatorAddress: recipient,
-			Amount:           shareToken,
+	switch retMemoType {
+	case liquiditybondMemo:
+
+	case recoverMemo:
+		recoverTxRes, err := poolClient.QueryTxByHash(retRecoverTxHash)
+		if err != nil || recoverTxRes.Code != 0 || recoverTxRes.Empty() {
+			l.log.Warn("received token with recover memo, but QueryTxByHash failed", "txHash", tx.TxHash, "err", err)
+			return nil
 		}
+		_, recoverMsgSends, err := parseMemoAndMsgs(poolClient, recoverTxRes.Tx.GetValue())
+		if err != nil {
+			return err
+		}
+		if len(recoverMsgSends) == 0 {
+			l.log.Warn("received token with recover memo, but no msg send", "txHash", tx.TxHash, "err", err)
+			return nil
+		}
+
+		if recoverMsgSends[0].FromAddress != msgSends[0].FromAddress {
+			l.log.Warn("received token with recover memo, but have different sender", "txHash", tx.TxHash, "err", err)
+			return nil
+		}
+
+		recoverShouldSkip, recoverBondState, recoverPool, recoverNativeBondAmount, recoverLsmBondAmount, recoverMsgs, err := l.checkMsgs(poolClient, recoverMsgSends, recoverTxRes.Height, liquiditybondMemo)
+		if err != nil {
+			return err
+		}
+		if recoverShouldSkip {
+			l.log.Warn("received token with recover memo, but should skip", "txHash", tx.TxHash, "err", err)
+			return nil
+		}
+
+		if recoverBondState != xLedgerTypes.LiquidityBondStateVerifyOk {
+			l.log.Warn("received token with recover memo, but bond state not ok", "txHash", tx.TxHash, "err", err)
+			return nil
+		}
+
+		pool = recoverPool
+		nativeBondAmount = recoverNativeBondAmount
+		lsmBondAmount = recoverLsmBondAmount
+		msgs = recoverMsgs
+		tx = recoverTxRes
+
+	default:
+		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
+			Denom:  string(l.symbol),
+			Bonder: zeroStafiAddressStr,
+			Pool:   pool,
+			Txhash: tx.TxHash,
+			Amount: nativeBondAmount.Add(lsmBondAmount),
+			State:  xLedgerTypes.LiquidityBondStateMemoUnmatch,
+		}
+		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+	}
+
+	switch {
+	case nativeBondAmount.IsPositive() && lsmBondAmount.IsZero():
+		proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
+			Denom:  string(l.symbol),
+			Bonder: retStafiAddress,
+			Pool:   pool,
+			Txhash: tx.TxHash,
+			Amount: nativeBondAmount.Add(lsmBondAmount),
+			State:  xLedgerTypes.LiquidityBondStateVerifyOk,
+		}
+		return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
+	case nativeBondAmount.IsZero() && lsmBondAmount.IsPositive():
 
 		proposal := core.ProposalExeNativeAndLsmLiquidityBond{
 			Denom:            string(l.symbol),
-			Bonder:           bonderAddressStr,
-			Pool:             recipient,
-			Txhash:           txHash,
+			Bonder:           retStafiAddress,
+			Pool:             pool,
+			Txhash:           tx.TxHash,
 			NativeBondAmount: types.ZeroInt(),
-			LsmBondAmount:    coin.Amount,
-			State:            state,
-			Msgs:             []types.Msg{&msg},
+			LsmBondAmount:    lsmBondAmount,
+			State:            xLedgerTypes.LiquidityBondStateVerifyOk,
+			Msgs:             msgs,
 		}
 		return l.SubmitProposalExeNativeAndLsmLiquidityBond(proposal)
+	case nativeBondAmount.IsPositive() && lsmBondAmount.IsPositive():
+		return fmt.Errorf("not support amounts: native: %s lsm: %s", nativeBondAmount.String(), lsmBondAmount.String())
+	default:
+		return fmt.Errorf("unknown amounts: native: %s lsm: %s", nativeBondAmount.String(), lsmBondAmount.String())
 	}
 }
 
-// memo case: empty, just return
-// memo case: 1:[address], submit exeLiquidityBond proposal to stafihub
-// memo case: 2:[address]:[txHash], recover for txHash (which is send from signer)
-// memo case: unkonw format, just return
-func (l Listener) dealMemo(poolClient *hubClient.Client, memo, recipient, from, txHash string, coin, shareToken types.Coin, isNativeBond bool) error {
+func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.MsgSend, height int64, memoType uint8) (shouldSkip bool,
+	retBondState xLedgerTypes.LiquidityBondState, retPool string, retNativeBondAmount, retLsmBondAmount types.Int, retMsgs []types.Msg, retErr error) {
+	nativeBondAmount := types.ZeroInt()
+	lsmBondAmount := types.ZeroInt()
+	poolRecipient := ""
+	var poolAddress types.AccAddress
+	msgs := make([]types.Msg, 0)
 
-	if len(memo) == 0 {
-		l.log.Warn("received token but no memo", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String())
-		return nil
+	for _, msg := range msgSends {
+		recipient := msg.ToAddress
+		transferCoins := msg.Amount
+
+		// skip if not to this pool
+		if !l.hasPool(recipient) {
+			continue
+		}
+		if len(poolRecipient) != 0 && poolRecipient != recipient {
+			return false, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, fmt.Errorf("not support multi pool in one tx")
+		}
+		if len(poolRecipient) == 0 {
+			poolRecipient = recipient
+			done := core.UseSdkConfigContext(client.GetAccountPrefix())
+			address, err := types.AccAddressFromBech32(poolRecipient)
+			if err != nil {
+				done()
+				return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, fmt.Errorf("pool recipient fmt error: %s", poolRecipient)
+			}
+			poolAddress = address
+			done()
+		}
+
+		for _, transferCoin := range transferCoins {
+			switch {
+			case transferCoin.GetDenom() == client.GetDenom():
+				nativeBondAmount = nativeBondAmount.Add(transferCoin.Amount)
+			case strings.Contains(transferCoin.GetDenom(), "/"):
+				splits := strings.Split(transferCoin.GetDenom(), "/")
+				if len(splits) != 2 {
+					l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
+					return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+				}
+				valAddressStr := splits[0]
+
+				done := core.UseSdkConfigContext(client.GetAccountPrefix())
+				valAddress, err := types.ValAddressFromBech32(valAddressStr)
+				if err != nil {
+					done()
+					l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
+					return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+				}
+
+				done()
+
+				targetVals, err := l.conn.GetPoolTargetValidators(recipient)
+				if err != nil {
+					l.log.Warn("pool not support, %s", recipient)
+					return false, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, fmt.Errorf("pool %s targetVal not exists", recipient)
+				}
+
+				isInTargetVals := false
+				for _, tVal := range targetVals {
+					if bytes.Equal(tVal, valAddress) {
+						isInTargetVals = true
+						break
+					}
+				}
+				if !isInTargetVals {
+					l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
+					return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+				}
+
+				validatorInfoRes, err := client.QueryValidator(valAddressStr, height)
+				if err != nil {
+					return false, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, err
+				}
+
+				shareToTokenAmount := validatorInfoRes.Validator.TokensFromShares(types.NewDecFromInt(transferCoin.Amount)).TruncateInt()
+
+				lsmBondAmount = lsmBondAmount.Add(shareToTokenAmount)
+
+				msgs = append(msgs, xLedgerTypes.NewMsgRedeemTokensForShares(poolAddress, transferCoin))
+
+			default:
+				l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
+				return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+			}
+		}
+
 	}
 
-	split := strings.Split(memo, ":")
+	if nativeBondAmount.IsPositive() || lsmBondAmount.IsPositive() {
+		if memoType == recoverMemo {
+			return false, xLedgerTypes.LiquidityBondStateVerifyOk, poolRecipient, nativeBondAmount, lsmBondAmount, msgs, nil
+		}
+
+		if nativeBondAmount.Add(lsmBondAmount).LT(l.conn.leastBond.Amount) {
+			return false, xLedgerTypes.LiquidityBondStateAmountUnmatch, poolRecipient, nativeBondAmount, lsmBondAmount, nil, nil
+		} else {
+			return false, xLedgerTypes.LiquidityBondStateVerifyOk, poolRecipient, nativeBondAmount, lsmBondAmount, msgs, nil
+		}
+	}
+
+	return true, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+}
+
+func parseMemoAndMsgs(client *hubClient.Client, txValue []byte) (string, []*xBankTypes.MsgSend, error) {
+	msgSends := make([]*xBankTypes.MsgSend, 0)
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	defer func() {
+		done()
+	}()
+
+	tx, err := client.GetTxConfig().TxDecoder()(txValue)
+	if err != nil {
+		return "", nil, err
+	}
+	memoTx, ok := tx.(types.TxWithMemo)
+	if !ok {
+		return "", nil, fmt.Errorf("tx is not type TxWithMemo")
+	}
+
+	memoStr := memoTx.GetMemo()
+
+	for _, msg := range memoTx.GetMsgs() {
+		if types.MsgTypeURL(msg) == types.MsgTypeURL((*xBankTypes.MsgSend)(nil)) {
+			msgSend, ok := msg.(*xBankTypes.MsgSend)
+			if !ok {
+				return "", nil, fmt.Errorf("msgsend cast err: %s", hex.EncodeToString(txValue))
+			}
+			msgSends = append(msgSends, msgSend)
+		}
+	}
+	return memoStr, msgSends, nil
+}
+
+func checkMemo(memoStr string) (retMomoType uint8, retStafiAddress string, retRecoverTxHash string) {
+
+	if len(memoStr) == 0 {
+		return 0, "", ""
+	}
+	split := strings.Split(memoStr, ":")
 	if len(split) < 2 {
-		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-		return nil
+		return 0, "", ""
 	}
-
 	switch split[0] {
 	case "1":
-		// check bond amount
-		if coin.IsLT(l.conn.leastBond) {
-			l.log.Debug("got transfer event but less than leastBond", "txHash", txHash, "bond amount", coin.String())
-			if isNativeBond {
-				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-					Denom:  string(l.symbol),
-					Bonder: zeroStafiAddressStr,
-					Pool:   recipient,
-					Txhash: txHash,
-					Amount: coin.Amount,
-					State:  xLedgerTypes.LiquidityBondStateAmountUnmatch,
-				}
-				return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-			} else {
-
-				proposal := core.ProposalExeNativeAndLsmLiquidityBond{
-					Denom:            string(l.symbol),
-					Bonder:           zeroStafiAddressStr,
-					Pool:             recipient,
-					Txhash:           txHash,
-					NativeBondAmount: types.ZeroInt(),
-					LsmBondAmount:    coin.Amount,
-					State:            xLedgerTypes.LiquidityBondStateAmountUnmatch,
-					Msgs:             []types.Msg{},
-				}
-				return l.SubmitProposalExeNativeAndLsmLiquidityBond(proposal)
-			}
-		}
-
-		// check user stafi address
 		done := core.UseSdkConfigContext("stafi")
-		bonder, err := types.AccAddressFromBech32(split[1])
+		_, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
 			done()
-			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-			if isNativeBond {
-				proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-					Denom:  string(l.symbol),
-					Bonder: zeroStafiAddressStr,
-					Pool:   recipient,
-					Txhash: txHash,
-					Amount: coin.Amount,
-					State:  xLedgerTypes.LiquidityBondStateBonderUnmatch,
-				}
-				return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-			} else {
-
-				proposal := core.ProposalExeNativeAndLsmLiquidityBond{
-					Denom:            string(l.symbol),
-					Bonder:           zeroStafiAddressStr,
-					Pool:             recipient,
-					Txhash:           txHash,
-					NativeBondAmount: types.ZeroInt(),
-					LsmBondAmount:    coin.Amount,
-					State:            xLedgerTypes.LiquidityBondStateBonderUnmatch,
-					Msgs:             []types.Msg{},
-				}
-				return l.SubmitProposalExeNativeAndLsmLiquidityBond(proposal)
-			}
+			return 0, "", ""
 		}
-		bonderStr := bonder.String()
 		done()
-
-		// all is ok
-		if isNativeBond {
-			proposalExeLiquidityBond := core.ProposalExeLiquidityBond{
-				Denom:  string(l.symbol),
-				Bonder: bonderStr,
-				Pool:   recipient,
-				Txhash: txHash,
-				Amount: coin.Amount,
-				State:  xLedgerTypes.LiquidityBondStateVerifyOk,
-			}
-			return l.SubmitProposalExeLiquidityBond(proposalExeLiquidityBond)
-		} else {
-			msg := xLedgerTypes.MsgRedeemTokensForShares{
-				DelegatorAddress: recipient,
-				Amount:           shareToken,
-			}
-
-			proposal := core.ProposalExeNativeAndLsmLiquidityBond{
-				Denom:            string(l.symbol),
-				Bonder:           bonderStr,
-				Pool:             recipient,
-				Txhash:           txHash,
-				NativeBondAmount: types.ZeroInt(),
-				LsmBondAmount:    coin.Amount,
-				State:            xLedgerTypes.LiquidityBondStateVerifyOk,
-				Msgs:             []types.Msg{&msg},
-			}
-			return l.SubmitProposalExeNativeAndLsmLiquidityBond(proposal)
-		}
+		return liquiditybondMemo, split[1], ""
 	case "2":
-		// check memo
 		if len(split) != 3 {
-			l.log.Warn("received token with recover memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-			return nil
+			return 0, "", ""
 		}
 		// check user stafi address
 		done := core.UseSdkConfigContext("stafi")
-		bonder, err := types.AccAddressFromBech32(split[1])
+		_, err := types.AccAddressFromBech32(split[1])
 		if err != nil {
 			done()
-			l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-			return nil
+			return 0, "", ""
 		}
-		bonderStr := bonder.String()
 		done()
 
 		// checkout recovered tx
 		recoveredTxHash := split[2]
-		txRes, err := poolClient.QueryTxByHash(recoveredTxHash)
-		if err != nil || txRes.Code != 0 || txRes.Empty() {
-			l.log.Warn("received token with recover memo, but QueryTxByHash failed", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo, "err", err)
-			return nil
-		}
 
-		// all is ok
-		l.log.Info("received token with recover memo, will deal this txHash", "pool", recipient, "from", from, "txHash", txHash, "recoveredTxhash", recoveredTxHash, "memo", memo)
-		return l.processRecoveredTx(poolClient, txRes, bonderStr, from)
+		return recoverMemo, split[1], recoveredTxHash
 
 	default:
-		l.log.Warn("received token with memo, but unknow format", "pool", recipient, "from", from, "txHash", txHash, "coin", coin.String(), "memo", memo)
-		return nil
+		return 0, "", ""
 	}
-
-}
-
-// bonder is a stafi address of user, signer is the signer of recover tx
-func (l *Listener) processRecoveredTx(poolClient *hubClient.Client, tx *types.TxResponse, bonder, signer string) error {
-	if tx.Code != 0 || tx.Empty() {
-		return nil
-	}
-	for _, log := range tx.Logs {
-		for _, event := range log.Events {
-			err := l.processStringEvents(poolClient, tx.Tx.GetValue(), tx.Height, tx.TxHash, event, true, bonder, signer)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // blocked until tx is dealed on stafichain

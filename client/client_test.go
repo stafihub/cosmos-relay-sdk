@@ -12,6 +12,7 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
+	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistributionType "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingType "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/sirupsen/logrus"
@@ -111,7 +112,7 @@ func TestQuerySignInfo(t *testing.T) {
 func TestClient_QueryTxByHash(t *testing.T) {
 	initClient()
 
-	res, err := client.QueryTxByHash("C7F7A80929B80D2BCD5597FEF65469F0FAF9C2B05723B8540109790099AF035F")
+	res, err := client.QueryTxByHash("7B81881CDCFCF928B946DFA78ED4F9196ED20DBE340F9FBB85A406AE19319808")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,10 +125,15 @@ func TestClient_QueryTxByHash(t *testing.T) {
 
 	t.Log(sig.GetSignatures())
 
-	curBlock, err := client.GetCurrentBlockHeight()
-	assert.NoError(t, err)
-	t.Log(curBlock)
-
+	for _, msg := range tx.GetMsgs() {
+		if types.MsgTypeURL(msg) == types.MsgTypeURL((*xBankTypes.MsgSend)(nil)) {
+			msgSend, ok := msg.(*xBankTypes.MsgSend)
+			if !ok {
+				t.Fatal("cast err")
+			}
+			t.Log(msgSend.FromAddress, msgSend.ToAddress, msgSend.Amount)
+		}
+	}
 }
 
 func TestClient_GetEvent(t *testing.T) {
