@@ -198,7 +198,6 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 					l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
 					return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
 				}
-
 				done()
 
 				targetVals, err := l.conn.GetPoolTargetValidators(recipient)
@@ -215,8 +214,18 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 					}
 				}
 				if !isInTargetVals {
-					l.log.Warn(fmt.Sprintf("transfer denom not support, %s", transferCoin.GetDenom()))
+					l.log.Warn(fmt.Sprintf("validators of share not in targetVals, transfer denom not support, %s", transferCoin.GetDenom()))
 					return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+				}
+
+				_, err = client.TokenizeShareRecordByDenom(transferCoin.GetDenom(), height)
+				if err != nil {
+					if strings.Contains(err.Error(), "tokenize share record not found") {
+						l.log.Warn(fmt.Sprintf("tokenize share record not found, transfer denom not support, %s", transferCoin.GetDenom()))
+						return false, xLedgerTypes.LiquidityBondStateDenomUnmatch, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, nil
+					} else {
+						return false, -1, poolRecipient, types.ZeroInt(), types.ZeroInt(), nil, err
+					}
 				}
 
 				validatorInfoRes, err := client.QueryValidator(valAddressStr, height)

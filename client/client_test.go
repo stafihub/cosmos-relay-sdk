@@ -3,13 +3,12 @@ package client_test
 import (
 	"encoding/hex"
 	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/JFJun/go-substrate-crypto/ss58"
-	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	// "github.com/cosmos/cosmos-sdk/crypto/keyring"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	"github.com/cosmos/cosmos-sdk/types"
 	txtypes "github.com/cosmos/cosmos-sdk/types/tx"
@@ -28,22 +27,22 @@ import (
 var client *hubClient.Client
 
 func initClient() {
-	key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"), hubClient.MakeEncodingConfig().Marshaler)
-	if err != nil {
-		panic(err)
-	}
+	// key, err := keyring.New(types.KeyringServiceName(), keyring.BackendFile, "/Users/tpkeeper/.gaia", strings.NewReader("tpkeeper\n"), hubClient.MakeEncodingConfig().Marshaler)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	// var err error
+	var err error
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443", "https://test-cosmos-rpc1.stafihub.io:443", "https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc-cosmoshub.keplr.app:443"},log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://test-chihuahua-rpc1.stafihub.io:443"})
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"}, log.NewLog("test"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
-	client, err = hubClient.NewClient(key, "key1", "0.001stake", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(key, "key1", "0.001stake", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
@@ -587,4 +586,28 @@ func TestGetTxs(t *testing.T) {
 	}
 	t.Log(txs.Count, txs.PageTotal, txs.PageNumber, txs.Limit, len(txs.Txs))
 
+}
+func TestClient_QueryLsm(t *testing.T) {
+	initClient()
+	params, err := client.QueryStakingParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(params)
+	record, err := client.TokenizeShareRecordByDenom("fsfs", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log(record)
+	// total, err := client.TotalLiquidStaked(0)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// t.Log(total)
+	vals, err := client.QueryValidators(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(vals.Validators[0])
 }

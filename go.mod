@@ -151,7 +151,7 @@ require (
 )
 
 replace (
-	github.com/cosmos/cosmos-sdk => github.com/stafihub/cosmos-sdk v0.46.13-stafihub-0.1.0
+	github.com/cosmos/cosmos-sdk => github.com/stafihub/cosmos-sdk v0.46.13-stafihub-0.2.0
 	github.com/gogo/protobuf => github.com/regen-network/protobuf v1.3.3-alpha.regen.1
 	github.com/tendermint/tendermint => github.com/cometbft/cometbft v0.34.28
 )

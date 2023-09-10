@@ -49,6 +49,8 @@ var (
 	TxTypeHandleRValidatorUpdatedEvent = "handleRValidatorUpdatedEvent"
 )
 
+var ValidatorBondCapDisabled = types.NewDecFromInt(types.NewInt(-1))
+
 func GetMemo(era uint32, txType string) string {
 	return fmt.Sprintf("%d:%s", era, txType)
 }
@@ -378,18 +380,92 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 		unSignedType = 0
 		return
 	case 1:
-		valAddrs := targets
+		var valAddrs []types.ValAddress
+		totalShouldBondAmount := types.NewIntFromBigInt(new(big.Int).Sub(bond, unbond))
+
+		var stakingParams *xStakingTypes.QueryParamsResponse
+		stakingParams, err = client.QueryStakingParams()
+		if err != nil {
+			return
+		}
+		// lsm case
+		if !(stakingParams.Params.ValidatorBondFactor.IsZero() &&
+			stakingParams.Params.GlobalLiquidStakingCap.IsZero() &&
+			stakingParams.Params.ValidatorLiquidStakingCap.IsZero()) {
+			poolRes, poolErr := client.QueryPool(height)
+			if poolErr != nil {
+				err = poolErr
+				return
+			}
+			totalLiquidStakedAmountRes, lsErr := client.TotalLiquidStaked(height)
+			if lsErr != nil {
+				err = lsErr
+				return
+			}
+			totalLiquidStakedAmount, ok := types.NewIntFromString(totalLiquidStakedAmountRes.Tokens)
+			if !ok {
+				err = fmt.Errorf("parse totalLiquidStakedAmount %s failed", totalLiquidStakedAmountRes.Tokens)
+				return
+			}
+
+			totalStakedAmount := poolRes.Pool.BondedTokens.Add(totalShouldBondAmount)
+			totalLiquidStakedAmount = totalLiquidStakedAmount.Add(totalShouldBondAmount)
+
+			// 0 check global liquid staking cap
+			liquidStakePercent := types.NewDecFromInt(totalLiquidStakedAmount).Quo(types.NewDecFromInt(totalStakedAmount))
+			if liquidStakePercent.GT(stakingParams.Params.GlobalLiquidStakingCap) {
+				return nil, 0, fmt.Errorf("ExceedsGlobalLiquidStakingCap %s", liquidStakePercent.String())
+			}
+
+			for _, val := range targets {
+				done := core.UseSdkConfigContext(client.GetAccountPrefix())
+				valStr := val.String()
+				done()
+
+				valRes, sErr := client.QueryValidator(valStr, height)
+				if sErr != nil {
+					err = sErr
+					return
+				}
+				shares, sErr := valRes.Validator.SharesFromTokens(totalShouldBondAmount)
+				if sErr != nil {
+					err = sErr
+					return
+				}
+
+				// 1 check val bond cap
+				if !stakingParams.Params.ValidatorBondFactor.Equal(ValidatorBondCapDisabled) {
+					maxValLiquidShares := valRes.Validator.ValidatorBondShares.Mul(stakingParams.Params.ValidatorBondFactor)
+					if valRes.Validator.LiquidShares.Add(shares).GT(maxValLiquidShares) {
+						continue
+					}
+				}
+
+				// 2 check val liquid staking cap
+				updatedLiquidShares := valRes.Validator.LiquidShares.Add(shares)
+				updatedTotalShares := valRes.Validator.DelegatorShares.Add(shares)
+				liquidStakePercent := updatedLiquidShares.Quo(updatedTotalShares)
+				if liquidStakePercent.GT(stakingParams.Params.ValidatorLiquidStakingCap) {
+					continue
+				}
+
+				valAddrs = append(valAddrs, val)
+			}
+
+		} else {
+			valAddrs = targets
+		}
+
 		valAddrsLen := len(valAddrs)
 		//check valAddrs length
 		if valAddrsLen == 0 {
-			return nil, 0, fmt.Errorf("no target valAddrs, pool: %s", poolAddrStr)
+			return nil, 0, fmt.Errorf("no enough target valAddrs, pool: %s", poolAddrStr)
 		}
 
-		val := bond.Sub(bond, unbond)
 		msgs, err = client.GenDelegateMsgs(
 			poolAddr,
 			valAddrs,
-			types.NewCoin(client.GetDenom(), types.NewIntFromBigInt(val)))
+			types.NewCoin(client.GetDenom(), totalShouldBondAmount))
 		unSignedType = 1
 		return
 	case -1:

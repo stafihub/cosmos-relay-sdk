@@ -477,6 +477,67 @@ func (c *Client) QueryBondedDenom() (*xStakeTypes.QueryParamsResponse, error) {
 	return cc.(*xStakeTypes.QueryParamsResponse), nil
 }
 
+func (c *Client) QueryStakingParams() (*xStakeTypes.QueryParamsResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx())
+		params := xStakeTypes.QueryParamsRequest{}
+		return queryClient.Params(context.Background(), &params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryParamsResponse), nil
+}
+
+func (c *Client) TokenizeShareRecordByDenom(shareDenom string, height int64) (*xStakeTypes.QueryTokenizeShareRecordByDenomResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		params := xStakeTypes.QueryTokenizeShareRecordByDenomRequest{
+			Denom: shareDenom,
+		}
+		return queryClient.TokenizeShareRecordByDenom(context.Background(), &params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryTokenizeShareRecordByDenomResponse), nil
+}
+
+func (c *Client) TotalLiquidStaked(height int64) (*xStakeTypes.QueryTotalLiquidStakedResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		params := xStakeTypes.QueryTotalLiquidStaked{}
+		return queryClient.TotalLiquidStaked(context.Background(), &params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryTotalLiquidStakedResponse), nil
+}
+func (c *Client) QueryPool(height int64) (*xStakeTypes.QueryPoolResponse, error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+
+	cc, err := c.retry(func() (interface{}, error) {
+		queryClient := xStakeTypes.NewQueryClient(c.Ctx().WithHeight(height))
+		params := xStakeTypes.QueryPoolRequest{}
+		return queryClient.Pool(context.Background(), &params)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return cc.(*xStakeTypes.QueryPoolResponse), nil
+}
+
 func (c *Client) GetLastTxIncludeWithdraw(delegatorAddr string) (string, string, int64, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
@@ -686,43 +747,6 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 			}
 		}
 	}
-
-	// if block.Block.Header.Time.Unix() > targetTimestamp {
-	// 	afterBlockNumber = block.Block.Height
-	// 	for {
-	// 		c.logger.Trace("afterBlock", "block", afterBlockNumber)
-	// 		if afterBlockNumber <= 2 {
-	// 			return 1, nil
-	// 		}
-	// 		block, err := c.QueryBlock(afterBlockNumber - 1)
-	// 		if err != nil {
-	// 			return 0, err
-	// 		}
-	// 		if block.Block.Time.Unix() > targetTimestamp {
-	// 			afterBlockNumber = block.Block.Height
-	// 			continue
-	// 		}
-
-	// 		break
-	// 	}
-
-	// } else {
-	// 	preBlockNumber = block.Block.Height
-	// 	for {
-	// 		c.logger.Trace("preBlock", "block", preBlockNumber)
-	// 		block, err := c.QueryBlock(preBlockNumber + 1)
-	// 		if err != nil {
-	// 			return 0, err
-	// 		}
-	// 		if block.Block.Time.Unix() > targetTimestamp {
-	// 			afterBlockNumber = block.Block.Height
-	// 			break
-	// 		} else {
-	// 			preBlockNumber = block.Block.Height
-	// 		}
-	// 	}
-	// }
-
 	return afterBlockNumber, nil
 }
 
