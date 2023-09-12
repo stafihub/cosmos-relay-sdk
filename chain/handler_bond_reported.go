@@ -205,9 +205,10 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eventBondReported core.EventBondReported) error {
 	h.log.Info("dealIcaPoolBondReportedEvent", "event", eventBondReported)
 
+	// check lsm proposalId if upgrade to v050
 	proposalId, err := h.mustGetLatestLsmProposalIdFromStafiHub()
 	if err != nil {
-		if err != ErrNotFound {
+		if err != ErrNotFound && err != ErrUnknownQueryPath {
 			return err
 		}
 	} else {

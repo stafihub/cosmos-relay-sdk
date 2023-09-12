@@ -40,6 +40,7 @@ var (
 	ErrNoOutPuts            = errors.New("outputs length is zero")
 	ErrNoRewardNeedDelegate = fmt.Errorf("no tx reward need delegate")
 	ErrNotFound             = errors.New("NotFound")
+	ErrUnknownQueryPath     = errors.New("UnknownQueryPath")
 )
 
 var (
@@ -1208,6 +1209,9 @@ func (h *Handler) mustGetLatestLsmProposalIdFromStafiHub() (string, error) {
 		}
 		if s == "NotFound" {
 			return "", ErrNotFound
+		}
+		if s == "UnknownQueryPath" {
+			return "", ErrUnknownQueryPath
 		}
 
 		return s, nil
