@@ -345,15 +345,93 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		return err
 	}
 
+	var valAddrs []types.ValAddress
+	totalShouldBondAmount := rewardBalanceRes.Balance.Amount
+
+	stakingParams, err := poolClient.QueryStakingParams()
+	if err != nil {
+		return err
+	}
+
+	// lsm case
+	if !(stakingParams.Params.ValidatorBondFactor.IsZero() &&
+		stakingParams.Params.GlobalLiquidStakingCap.IsZero() &&
+		stakingParams.Params.ValidatorLiquidStakingCap.IsZero()) {
+
+		poolRes, poolErr := poolClient.QueryPool(height)
+		if poolErr != nil {
+			return poolErr
+		}
+		totalLiquidStakedAmountRes, lsErr := poolClient.TotalLiquidStaked(height)
+		if lsErr != nil {
+			return lsErr
+		}
+		totalLiquidStakedAmount, ok := types.NewIntFromString(totalLiquidStakedAmountRes.Tokens)
+		if !ok {
+			return fmt.Errorf("parse totalLiquidStakedAmount %s failed", totalLiquidStakedAmountRes.Tokens)
+		}
+
+		totalStakedAmount := poolRes.Pool.BondedTokens.Add(totalShouldBondAmount)
+		totalLiquidStakedAmount = totalLiquidStakedAmount.Add(totalShouldBondAmount)
+
+		// 0 check global liquid staking cap
+		liquidStakePercent := types.NewDecFromInt(totalLiquidStakedAmount).Quo(types.NewDecFromInt(totalStakedAmount))
+		if liquidStakePercent.GT(stakingParams.Params.GlobalLiquidStakingCap) {
+			return fmt.Errorf("ExceedsGlobalLiquidStakingCap %s", liquidStakePercent.String())
+		}
+
+		for _, val := range targetValidators {
+			done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
+			valStr := val.String()
+			done()
+
+			valRes, sErr := poolClient.QueryValidator(valStr, height)
+			if sErr != nil {
+				return sErr
+			}
+			shares, sErr := valRes.Validator.SharesFromTokens(totalShouldBondAmount)
+			if sErr != nil {
+				return sErr
+			}
+
+			// 1 check val bond cap
+			if !stakingParams.Params.ValidatorBondFactor.Equal(ValidatorBondCapDisabled) {
+				maxValLiquidShares := valRes.Validator.ValidatorBondShares.Mul(stakingParams.Params.ValidatorBondFactor)
+				if valRes.Validator.LiquidShares.Add(shares).GT(maxValLiquidShares) {
+					continue
+				}
+			}
+
+			// 2 check val liquid staking cap
+			updatedLiquidShares := valRes.Validator.LiquidShares.Add(shares)
+			updatedTotalShares := valRes.Validator.DelegatorShares.Add(shares)
+			liquidStakePercent := updatedLiquidShares.Quo(updatedTotalShares)
+			if liquidStakePercent.GT(stakingParams.Params.ValidatorLiquidStakingCap) {
+				continue
+			}
+
+			valAddrs = append(valAddrs, val)
+		}
+
+	} else {
+		valAddrs = targetValidators
+	}
+
+	valAddrsLen := len(valAddrs)
+	//check valAddrs length
+	if valAddrsLen == 0 {
+		return fmt.Errorf("no enough target valAddrs, pool: %s", poolAddressStr)
+	}
+
 	msgs, err = poolClient.GenDelegateMsgs(
 		poolAddress,
-		targetValidators,
+		valAddrs,
 		*rewardBalanceRes.Balance)
 	if err != nil {
 		return err
 	}
 
-	factor := uint32(1)
+	factor := uint32(2)
 	interchainTx, err = stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
