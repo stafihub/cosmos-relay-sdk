@@ -351,7 +351,8 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 // if bond > unbond: gen delegate tx
 // if bond < unbond: gen undelegate+withdraw tx
 func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond *big.Int,
-	poolAddr types.AccAddress, height int64, targets []types.ValAddress) (msgs []types.Msg, unSignedType int, err error) {
+	poolAddr types.AccAddress, height int64, targets []types.ValAddress, logger log.Logger) (msgs []types.Msg, unSignedType int, err error) {
+	logger.Debug("GetBondUnbondWithdrawMsgsWithTargets", targets)
 
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
@@ -393,6 +394,8 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 		if !(stakingParams.Params.ValidatorBondFactor.IsZero() &&
 			stakingParams.Params.GlobalLiquidStakingCap.IsZero() &&
 			stakingParams.Params.ValidatorLiquidStakingCap.IsZero()) {
+			logger.Debug("lsm case")
+
 			poolRes, poolErr := client.QueryPool(height)
 			if poolErr != nil {
 				err = poolErr
@@ -434,9 +437,12 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 					return
 				}
 
+				maxValLiquidSharesLog := valRes.Validator.ValidatorBondShares.Mul(stakingParams.Params.ValidatorBondFactor)
+				logger.Debug("validatorInfo", "address", valStr, "ValidatorBondShares", valRes.Validator.ValidatorBondShares, "LiquidShares", valRes.Validator.LiquidShares, "shares", shares, "maxValLiquidShares", maxValLiquidSharesLog)
 				// 1 check val bond cap
 				if !stakingParams.Params.ValidatorBondFactor.Equal(ValidatorBondCapDisabled) {
 					maxValLiquidShares := valRes.Validator.ValidatorBondShares.Mul(stakingParams.Params.ValidatorBondFactor)
+					logger.Debug("check info", "maxValLiquidShares", maxValLiquidShares)
 					if valRes.Validator.LiquidShares.Add(shares).GT(maxValLiquidShares) {
 						continue
 					}
@@ -446,6 +452,7 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 				updatedLiquidShares := valRes.Validator.LiquidShares.Add(shares)
 				updatedTotalShares := valRes.Validator.DelegatorShares.Add(shares)
 				liquidStakePercent := updatedLiquidShares.Quo(updatedTotalShares)
+				logger.Debug("check info", "ValidatorLiquidStakingCap", stakingParams.Params.ValidatorLiquidStakingCap, "liquidStakePercent", liquidStakePercent, "updatedTotalShares", updatedTotalShares)
 				if liquidStakePercent.GT(stakingParams.Params.ValidatorLiquidStakingCap) {
 					continue
 				}

@@ -241,7 +241,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 	}
 
 	msgs, _, err := GetBondUnbondWithdrawMsgsWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
-		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators)
+		snap.Chunk.Unbond.BigInt(), poolAddress, height, targetValidators, h.log)
 	if err != nil {
 		if err == hubClient.ErrNoMsgs {
 			return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)

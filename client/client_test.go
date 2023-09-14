@@ -37,8 +37,8 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc-cosmoshub.keplr.app:443"},log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://test-chihuahua-rpc1.stafihub.io:443"})
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"}, log.NewLog("test"))
-	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"}, log.NewLog("test"))
+	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
@@ -84,11 +84,17 @@ func TestClient_GetHeightByTimestamp(t *testing.T) {
 
 func TestQuerySignInfo(t *testing.T) {
 	initClient()
-
-	validator, err := client.QueryValidator("stafivaloper1yadulh67pu0y8xqy9kkeajjjhppfm384kczwsv", 0)
+	params, err := client.QueryStakingParams()
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	t.Log(params)
+	validator, err := client.QueryValidator("cosmosvaloper1lcwxu50rvvgf9v6jy6q5mrzyhlszwtjxhtscmp", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%+v", validator.Validator)
 
 	consPubkeyJson, err := client.Ctx().Codec.MarshalJSON(validator.Validator.ConsensusPubkey)
 	if err != nil {
