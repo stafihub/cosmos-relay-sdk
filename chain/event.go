@@ -252,7 +252,7 @@ func (l *Listener) checkMsgs(client *hubClient.Client, msgSends []*xBankTypes.Ms
 			return false, xLedgerTypes.LiquidityBondStateVerifyOk, poolRecipient, nativeBondAmount, lsmBondAmount, msgs, nil
 		}
 
-		if nativeBondAmount.Add(lsmBondAmount).LT(l.conn.leastBond.Amount) {
+		if nativeBondAmount.Add(lsmBondAmount).LT(l.conn.leastBond.Amount.Mul(types.NewInt(95)).Quo(types.NewInt(100))) {
 			return false, xLedgerTypes.LiquidityBondStateAmountUnmatch, poolRecipient, nativeBondAmount, lsmBondAmount, nil, nil
 		} else {
 			return false, xLedgerTypes.LiquidityBondStateVerifyOk, poolRecipient, nativeBondAmount, lsmBondAmount, msgs, nil
