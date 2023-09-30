@@ -55,7 +55,17 @@ func initClient() {
 
 func TestQueryBlock(t *testing.T) {
 	initClient()
+	// block,err:=client.QueryBlock(9431602)
+	// if err!=nil{
+	// 	t.Fatal(err)
+	// }
+	txs, err := client.GetBlockTxsWithParseErrSkip(9431602)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(txs)
 
+	return
 	init := int64(21164251)
 	end := int64(21164261)
 	initBlock, _ := client.QueryBlock(init)
@@ -69,7 +79,7 @@ func TestQueryBlock(t *testing.T) {
 
 func TestClient_GetHeightByEra(t *testing.T) {
 	initClient()
-	height, err := client.GetHeightByEra(19476, 86700, 0)
+	height, err := client.GetHeightByEra(19561, 86700, 0)
 	assert.NoError(t, err)
 	t.Log(height)
 }

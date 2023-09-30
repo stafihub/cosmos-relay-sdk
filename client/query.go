@@ -553,6 +553,12 @@ func (c *Client) QueryVotes(proposalId uint64, height int64, page, limit uint64,
 }
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
+	// chihuahua 19561 case
+	if era == 19561 && strings.EqualFold(c.Ctx().ChainID, "chihuahua-1") {
+		return 9431589, nil
+	}
+
+	// carbon testnet case
 	if strings.EqualFold(c.Ctx().ChainID, "carbon-testnet-42069") {
 		blockNumber, _, err := c.GetCurrentBLockAndTimestamp()
 		if err != nil {
