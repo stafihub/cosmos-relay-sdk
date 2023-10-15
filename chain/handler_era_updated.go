@@ -254,13 +254,14 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		}
 	}
 
+	factor := uint32(1)
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
 		stafiHubXLedgerTypes.TxTypeDealEraUpdated,
-		0,
+		factor,
 		msgs)
 	if err != nil {
 		return err
@@ -270,7 +271,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
 		TxType: stafiHubXLedgerTypes.TxTypeDealEraUpdated,
-		Factor: 0,
+		Factor: factor,
 		Msgs:   msgs,
 	}
 
