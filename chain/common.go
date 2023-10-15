@@ -385,16 +385,14 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 		var valAddrs []types.ValAddress
 		totalShouldBondAmount := types.NewIntFromBigInt(new(big.Int).Sub(bond, unbond))
 
-		var stakingParams *xStakingTypes.QueryParamsResponse
-		stakingParams, err = client.QueryStakingParams()
-		if err != nil {
-			return
-		}
 		// lsm case
-		if !(stakingParams.Params.ValidatorBondFactor.IsZero() &&
-			stakingParams.Params.GlobalLiquidStakingCap.IsZero() &&
-			stakingParams.Params.ValidatorLiquidStakingCap.IsZero()) {
+		if client.GetDenom() == "uatom" {
 			logger.Debug("lsm case")
+			var stakingParams *xStakingTypes.QueryParamsResponse
+			stakingParams, err = client.QueryStakingParams()
+			if err != nil {
+				return
+			}
 
 			poolRes, poolErr := client.QueryPool(height)
 			if poolErr != nil {

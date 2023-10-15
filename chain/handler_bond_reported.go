@@ -348,15 +348,12 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 	var valAddrs []types.ValAddress
 	totalShouldBondAmount := rewardBalanceRes.Balance.Amount
 
-	stakingParams, err := poolClient.QueryStakingParams()
-	if err != nil {
-		return err
-	}
-
 	// lsm case
-	if !(stakingParams.Params.ValidatorBondFactor.IsZero() &&
-		stakingParams.Params.GlobalLiquidStakingCap.IsZero() &&
-		stakingParams.Params.ValidatorLiquidStakingCap.IsZero()) {
+	if poolClient.GetDenom() == "uatom" {
+		stakingParams, err := poolClient.QueryStakingParams()
+		if err != nil {
+			return err
+		}
 
 		poolRes, poolErr := poolClient.QueryPool(height)
 		if poolErr != nil {
