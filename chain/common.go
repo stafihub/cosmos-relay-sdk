@@ -1159,16 +1159,22 @@ func bytesArrayToStr(bts [][]byte) string {
 
 // will wait until signature enough
 func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature, threshold uint32) (signatures [][]byte, err error) {
+	retry := 0
 	for {
+		if retry > BlockRetryLimit {
+			return nil, fmt.Errorf("mustGetSignatureFromStafiHub reach retry limit")
+		}
 		sigs, err := h.getSignatureFromStafiHub(param)
 		if err != nil {
 			h.log.Warn("getSignatureFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		if len(sigs) < int(threshold) {
 			h.log.Warn("getSignatureFromStafiHub sigs not enough, will retry.", "sigs len", len(sigs), "threshold", threshold)
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		return sigs, nil
@@ -1179,17 +1185,23 @@ func (h *Handler) mustGetSignatureFromStafiHub(param *core.ParamSubmitSignature,
 func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHubXLedgerTypes.InterchainTxStatus, error) {
 	var err error
 	var status stafiHubXLedgerTypes.InterchainTxStatus
+	retry := 0
 	for {
+		if retry > BlockRetryLimit {
+			return status, fmt.Errorf("mustGetInterchainTxStatusFromStafiHub reach retry limit")
+		}
 		status, err = h.getInterchainTxStatusFromStafiHub(propId)
 		if err != nil {
 			h.log.Warn("getInterchainTxStatusFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		if status == stafiHubXLedgerTypes.InterchainTxStatusUnspecified || status == stafiHubXLedgerTypes.InterchainTxStatusInit {
 			err = fmt.Errorf("status not match, status: %s", status)
 			h.log.Warn("handler getInterchainTxStatusFromStafiHub status not success, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		return status, nil
@@ -1200,16 +1212,22 @@ func (h *Handler) mustGetInterchainTxStatusFromStafiHub(propId string) (stafiHub
 func (h *Handler) mustGetLatestLsmProposalIdFromStafiHub() (string, error) {
 	var err error
 	var s string
+	retry := 0
 	for {
+		if retry > BlockRetryLimit {
+			return "", fmt.Errorf("mustGetLatestLsmProposalIdFromStafiHub reach retry limit")
+		}
 		s, err = h.getLatestLsmBondProposalIdFromStafiHub()
 		if err != nil {
 			h.log.Warn("mustGetLatestLsmProposalIdFromStafiHub failed, will retry.", "err", err)
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		if len(s) == 0 {
 			h.log.Warn("mustGetLatestLsmProposalIdFromStafiHub failed, will retry.")
 			time.Sleep(BlockRetryInterval)
+			retry++
 			continue
 		}
 		if s == "NotFound" {

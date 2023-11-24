@@ -616,6 +616,7 @@ func (c *Client) QueryVotes(proposalId uint64, height int64, page, limit uint64,
 }
 
 func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, error) {
+	// carbon testnet case
 	if strings.EqualFold(c.Ctx().ChainID, "carbon-testnet-42069") {
 		blockNumber, _, err := c.GetCurrentBLockAndTimestamp()
 		if err != nil {
@@ -628,7 +629,19 @@ func (c *Client) GetHeightByEra(era uint32, eraSeconds, offset int64) (int64, er
 		return 0, fmt.Errorf("era: %d is less than offset: %d", era, offset)
 	}
 	targetTimestamp := (int64(era) - offset) * eraSeconds
-	return c.GetHeightByTimestamp(targetTimestamp)
+	height, err := c.GetHeightByTimestamp(targetTimestamp)
+	if err != nil {
+		return 0, err
+	}
+
+	// carbon mainnet too old case
+	if strings.EqualFold(c.Ctx().ChainID, "carbon-1") {
+		if height < 50000000 {
+			height = 50000000
+		}
+	}
+
+	return height, nil
 }
 
 func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
