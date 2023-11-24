@@ -6,6 +6,8 @@ import (
 	"math"
 	"net"
 	"net/url"
+	"reflect"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -761,9 +763,11 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 	for i := 0; i < retryLimit; i++ {
 		result, err = f()
 		if err != nil {
+			funcNameRaw := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 			c.logger.Debug("retry",
 				"endpoint index", c.CurrentEndpointIndex(),
-				"err", err)
+				"err", err,
+				"func", funcNameRaw)
 			// connection err case
 			if isConnectionError(err) {
 				c.ChangeEndpoint()
@@ -779,7 +783,8 @@ func (c *Client) retry(f func() (interface{}, error)) (interface{}, error) {
 				if subErr != nil {
 					c.logger.Debug("retry",
 						"endpoint index", c.CurrentEndpointIndex(),
-						"subErr", err)
+						"subErr", err,
+						"func", funcNameRaw)
 					// filter connection err
 					if isConnectionError(subErr) {
 						continue

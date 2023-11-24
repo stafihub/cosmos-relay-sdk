@@ -38,13 +38,13 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "uhuahua", []string{"https://test-chihuahua-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"}, log.NewLog("test"))
-	client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
+	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
 	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(key, "key1", "0.000000001stake", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(key, "key1", "0.001stake", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
-	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
+	client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub dev"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
@@ -362,17 +362,17 @@ func TestAddress(t *testing.T) {
 
 func TestClient_QueryDelegations(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("swth10j3yjvgzm7r22us3tqz49gkgtkj0rt3pg6w8z7")
+	addr, err := types.AccAddressFromBech32("swth1l9vwusvmg79lma3uyy7xxjmp2dgymuz6zwr4zjn8el5lnsc6mgxsszxu48")
 	assert.NoError(t, err)
-	height := int64(38306830)
-	res, err := client.QueryDelegations(addr, height)
+	// height := int64(38306830)
+	res, err := client.QueryDelegations(addr, 50000141)
 	assert.NoError(t, err)
 	// t.Log(res.String())
 	for i, d := range res.GetDelegationResponses() {
 		t.Log(i, d.Balance.Amount)
 	}
 
-	balance, err := client.QueryBalance(addr, "swth", height)
+	balance, err := client.QueryBalance(addr, "swth", 0)
 	assert.NoError(t, err)
 	t.Log(balance.String())
 }

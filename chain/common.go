@@ -352,7 +352,7 @@ func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, 
 // if bond < unbond: gen undelegate+withdraw tx
 func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress, logger log.Logger) (msgs []types.Msg, unSignedType int, err error) {
-	logger.Debug("GetBondUnbondWithdrawMsgsWithTargets", targets)
+	logger.Debug("GetBondUnbondWithdrawMsgsWithTargets", "targets", targets, "height", height, "bond", bond.String(), "unbond", unbond.String())
 
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	poolAddrStr := poolAddr.String()
