@@ -39,6 +39,43 @@ func (l *Listener) processBlockResult(poolClient *hubClient.Client, blockResult 
 	return nil
 }
 
+func (l *Listener) isToPoolTx(client *hubClient.Client, tx *types.TxResponse) (bool, error) {
+	if tx.Code != 0 || tx.Empty() {
+		return false, nil
+	}
+
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	txDecode, err := client.GetTxConfig().TxDecoder()(tx.Tx.GetValue())
+	done()
+
+	if err != nil {
+		return false, err
+	}
+
+	memoTx, ok := txDecode.(types.TxWithMemo)
+	if !ok {
+		return false, fmt.Errorf("tx is not type TxWithMemo")
+	}
+
+	msgSends := make([]*xBankTypes.MsgSend, 0)
+	for _, msg := range memoTx.GetMsgs() {
+		if types.MsgTypeURL(msg) == types.MsgTypeURL((*xBankTypes.MsgSend)(nil)) {
+			msgSend, ok := msg.(*xBankTypes.MsgSend)
+			if !ok {
+				return false, fmt.Errorf("msgsend cast err: %s", hex.EncodeToString(tx.Tx.GetValue()))
+			}
+			// skip if not to this pool
+			if !l.hasPool(msgSend.ToAddress) {
+				continue
+			}
+			msgSends = append(msgSends, msgSend)
+		}
+	}
+
+	return len(msgSends) > 0, nil
+
+}
+
 // process tx or recovered tx
 func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse) error {
 	if tx.Code != 0 || tx.Empty() {
@@ -51,14 +88,6 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 	}
 
 	retMemoType, retStafiAddress, retRecoverTxHash := CheckMemo(memoStr)
-
-	// skip if memo not match
-	switch retMemoType {
-	case liquiditybondMemo, recoverMemo:
-	default:
-		l.log.Debug(fmt.Sprintf("memo not match, skip tx: %s", tx.TxHash))
-		return nil
-	}
 
 	shouldSkip, bondState, pool, nativeBondAmount, lsmBondAmount, msgs, err := l.checkMsgs(poolClient, msgSends, tx.Height, retMemoType)
 	if err != nil {

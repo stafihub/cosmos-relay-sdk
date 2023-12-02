@@ -2,7 +2,10 @@ package chain
 
 import (
 	"fmt"
+	"math"
 	"math/big"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/cosmos/cosmos-sdk/types"
@@ -12,6 +15,7 @@ import (
 	"github.com/stafihub/rtoken-relay-core/common/log"
 	"github.com/stafihub/rtoken-relay-core/common/utils"
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
+	"golang.org/x/sync/errgroup"
 )
 
 var (
@@ -28,6 +32,7 @@ type Listener struct {
 	router             *core.Router
 	log                log.Logger
 	distributionAddStr string
+	rawBlockResults    chan *BlockResult
 	blockResults       chan *BlockResult
 	stopChan           <-chan struct{}
 	sysErrChan         chan<- error
@@ -46,6 +51,11 @@ func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, c
 	done := core.UseSdkConfigContext(client.GetAccountPrefix())
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
 	done()
+
+	cachedSize := 50
+	if strings.EqualFold(client.Ctx().ChainID, "carbon-1") {
+		cachedSize = 1024
+	}
 	return &Listener{
 		symbol:             symbol,
 		startBlock:         startBlock,
@@ -55,7 +65,8 @@ func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, c
 		log:                log,
 		stopChan:           stopChan,
 		sysErrChan:         sysErr,
-		blockResults:       make(chan *BlockResult, 100),
+		rawBlockResults:    make(chan *BlockResult, cachedSize),
+		blockResults:       make(chan *BlockResult, cachedSize),
 	}
 }
 
@@ -92,6 +103,14 @@ func (l *Listener) start() error {
 		err := l.dealBlocks()
 		if err != nil {
 			l.log.Error("Dealling blocks failed", "err", err)
+			l.sysErrChan <- err
+		}
+	}()
+
+	go func() {
+		err := l.shrinkBlocks()
+		if err != nil {
+			l.log.Error("shrink blocks failed", "err", err)
 			l.sysErrChan <- err
 		}
 	}()
@@ -172,13 +191,92 @@ func (l *Listener) fetchBlocks() error {
 						time.Sleep(BlockRetryInterval)
 						continue
 					}
-					l.log.Debug(fmt.Sprintf("cached blocks: %d caching block : %d, tx len: %d", len(l.blockResults), willDealBlock, len(txs)))
+					l.log.Debug(fmt.Sprintf("cached blocks: %d caching block : %d, tx len: %d", len(l.rawBlockResults), willDealBlock, len(txs)))
 
-					l.blockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
+					l.rawBlockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
 					break
 				}
 			}
 			retry = 0
+		}
+	}
+}
+
+func (l *Listener) shrinkBlocks() error {
+	poolClient, err := l.conn.GetOnePoolClient()
+	if err != nil {
+		return err
+	}
+	for {
+		select {
+		case <-l.stopChan:
+			l.log.Info("dealBlocks receive stop chan, will stop")
+			return nil
+		case rawBlockResult := <-l.rawBlockResults:
+			dealLimit := 10
+			shrinkedBlock := BlockResult{Height: rawBlockResult.Height, Txs: make([]*types.TxResponse, 0)}
+			gNumber := uint64(math.Floor(float64(len(rawBlockResult.Txs)) / float64(dealLimit)))
+
+			l.log.Debug(fmt.Sprintf("shrinkBlock: %d, gNuimber: %d", rawBlockResult.Height, gNumber))
+
+			if gNumber > 0 {
+				retry := 0
+				for {
+					txChan := make(chan *types.TxResponse, len(rawBlockResult.Txs))
+
+					if retry > BlockRetryLimit {
+						return fmt.Errorf("shrinkBlocks reach retry limit ,symbol: %s", l.symbol)
+					}
+
+					g := new(errgroup.Group)
+					g.SetLimit(int(gNumber))
+
+					for i := 0; i < len(rawBlockResult.Txs); i += dealLimit {
+						start := i
+						end := i + dealLimit
+						if end > len(rawBlockResult.Txs) {
+							end = len(rawBlockResult.Txs)
+						}
+
+						g.Go(func() error {
+							for j := start; j < end; j++ {
+								tx := rawBlockResult.Txs[j]
+								isToPoolTx, err := l.isToPoolTx(poolClient, tx)
+								if err != nil {
+									return err
+								}
+								if isToPoolTx {
+									txChan <- tx
+								}
+							}
+							return nil
+						})
+					}
+
+					err = g.Wait()
+					if err != nil {
+						retry++
+						l.log.Error("errgroup failed", "err", err)
+						continue
+					}
+
+					if len(txChan) > 0 {
+						for tx := range txChan {
+							shrinkedBlock.Txs = append(shrinkedBlock.Txs, tx)
+						}
+
+						sort.SliceStable(shrinkedBlock.Txs, func(i, j int) bool {
+							return shrinkedBlock.Txs[i].TxHash < shrinkedBlock.Txs[j].TxHash
+						})
+					}
+					break
+				}
+			}
+
+			l.blockResults <- &shrinkedBlock
+
+			l.log.Debug(fmt.Sprintf("shrinkBlock: %d end, pool tx number: %d", rawBlockResult.Height, len(shrinkedBlock.Txs)))
+
 		}
 	}
 }
@@ -239,6 +337,9 @@ func (l *Listener) submitMessage(m *core.Message) error {
 }
 
 func (l *Listener) hasPool(p string) bool {
+	l.conn.poolClientMutex.RLock()
+	defer l.conn.poolClientMutex.RUnlock()
+
 	_, exist := l.conn.poolClients[p]
 	if exist {
 		return true
