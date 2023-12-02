@@ -51,6 +51,13 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 
 	retMemoType, retStafiAddress, retRecoverTxHash := CheckMemo(memoStr)
 
+	// skip if memo not match
+	switch retMemoType {
+	case liquiditybondMemo, recoverMemo:
+	default:
+		return nil
+	}
+
 	shouldSkip, bondState, pool, nativeBondAmount, lsmBondAmount, msgs, err := l.checkMsgs(poolClient, msgSends, tx.Height, retMemoType)
 	if err != nil {
 		return err

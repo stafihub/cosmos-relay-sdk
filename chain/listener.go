@@ -55,7 +55,7 @@ func NewListener(symbol core.RSymbol, startBlock uint64, bs utils.Blockstorer, c
 		log:                log,
 		stopChan:           stopChan,
 		sysErrChan:         sysErr,
-		blockResults:       make(chan *BlockResult, 4096),
+		blockResults:       make(chan *BlockResult, 100),
 	}
 }
 
