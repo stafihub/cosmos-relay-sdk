@@ -172,6 +172,8 @@ func (l *Listener) fetchBlocks() error {
 						time.Sleep(BlockRetryInterval)
 						continue
 					}
+					l.log.Debug(fmt.Sprintf("cached blocks: %d caching block : %d, tx len: %d", len(l.blockResults), willDealBlock, len(txs)))
+
 					l.blockResults <- &BlockResult{Height: willDealBlock, Txs: txs}
 					break
 				}
@@ -198,6 +200,8 @@ func (l *Listener) dealBlocks() error {
 				if retry > BlockRetryLimit {
 					return fmt.Errorf("dealBlocks reach retry limit ,symbol: %s", l.symbol)
 				}
+				l.log.Debug(fmt.Sprintf("processBlock: %d", blockResult.Height))
+
 				err = l.processBlockResult(poolClient, blockResult)
 				if err != nil {
 					l.log.Error("Failed to process results in block", "block", blockResult.Txs, "err", err)
@@ -206,11 +210,16 @@ func (l *Listener) dealBlocks() error {
 					continue
 				}
 
+				l.log.Debug(fmt.Sprintf("processBlock ok: %d", blockResult.Height))
+
 				// Write to blockstore
 				err = l.blockstore.StoreBlock(new(big.Int).SetUint64(blockResult.Height))
 				if err != nil {
 					l.log.Error("Failed to write to blockstore", "err", err)
 				}
+
+				l.log.Debug(fmt.Sprintf("storeBlock ok: %d", blockResult.Height))
+
 				retry = 0
 				break
 			}

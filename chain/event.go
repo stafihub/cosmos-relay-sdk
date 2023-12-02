@@ -34,6 +34,7 @@ func (l *Listener) processBlockResult(poolClient *hubClient.Client, blockResult 
 		if err != nil {
 			return err
 		}
+		l.log.Debug(fmt.Sprintf("processed block: %d tx: %s", tx.Height, tx.TxHash))
 	}
 	return nil
 }
@@ -55,6 +56,7 @@ func (l *Listener) processTx(poolClient *hubClient.Client, tx *types.TxResponse)
 	switch retMemoType {
 	case liquiditybondMemo, recoverMemo:
 	default:
+		l.log.Debug(fmt.Sprintf("memo not match, skip tx: %s", tx.TxHash))
 		return nil
 	}
 
@@ -293,6 +295,7 @@ func ParseMemoAndMsgs(client *hubClient.Client, txValue []byte) (string, []*xBan
 			if !ok {
 				return "", nil, fmt.Errorf("msgsend cast err: %s", hex.EncodeToString(txValue))
 			}
+
 			msgSends = append(msgSends, msgSend)
 		}
 	}
