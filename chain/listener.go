@@ -215,7 +215,7 @@ func (l *Listener) shrinkBlocks() error {
 		case rawBlockResult := <-l.rawBlockResults:
 			dealLimit := 10
 			shrinkedBlock := BlockResult{Height: rawBlockResult.Height, Txs: make([]*types.TxResponse, 0)}
-			gNumber := uint64(math.Floor(float64(len(rawBlockResult.Txs)) / float64(dealLimit)))
+			gNumber := uint64(math.Ceil(float64(len(rawBlockResult.Txs)) / float64(dealLimit)))
 
 			l.log.Debug(fmt.Sprintf("shrinkBlock: %d, gNuimber: %d", rawBlockResult.Height, gNumber))
 
