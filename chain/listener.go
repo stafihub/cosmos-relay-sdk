@@ -260,6 +260,8 @@ func (l *Listener) shrinkBlocks() error {
 						continue
 					}
 
+					close(txChan)
+
 					if len(txChan) > 0 {
 						for tx := range txChan {
 							shrinkedBlock.Txs = append(shrinkedBlock.Txs, tx)

@@ -22,6 +22,7 @@ import (
 	xLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/tendermint/crypto"
+	"golang.org/x/sync/errgroup"
 )
 
 var client *hubClient.Client
@@ -616,4 +617,59 @@ func TestClient_QueryLsm(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(vals.Validators[0])
+}
+
+func TestGroup(t *testing.T) {
+	txChan := make(chan int, 6)
+
+	g := new(errgroup.Group)
+	g.SetLimit(int(1))
+	dealLimit := 10
+
+	for i := 0; i < 6; i += dealLimit {
+		start := i
+		end := i + dealLimit
+		if end > 6 {
+			end = 6
+		}
+
+		g.Go(func() error {
+			for j := start; j < end; j++ {
+				t.Log("for j", j)
+				time.Sleep(time.Second * 1)
+				if j == 3 || j == 4 {
+					t.Log("send j", j)
+					txChan <- j
+
+				}
+
+			}
+			return nil
+		})
+	}
+
+	err := g.Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	close(txChan)
+
+	time.Sleep(time.Second * 2)
+
+	if len(txChan) > 0 {
+		for tx := range txChan {
+			t.Log("range", tx)
+		}
+		// Out:
+		// 	for {
+		// 		select {
+		// 		case tx := <-txChan:
+		// 			t.Log("range", tx)
+		// 		default:
+		// 			break Out
+		// 		}
+		// 	}
+	}
+	t.Log("end")
 }
