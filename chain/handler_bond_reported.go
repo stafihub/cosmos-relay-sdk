@@ -133,7 +133,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		Type:       stafiHubXLedgerTypes.TxTypeDealBondReported}
 
 	var txHash, txBts []byte
-	for i := 0; i < 5; i++ {
+	for i := 10; i < 15; i++ {
 		//use current seq
 		seq, err := poolClient.GetSequence(0, poolAddress)
 		if err != nil {
