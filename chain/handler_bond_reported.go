@@ -133,9 +133,9 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		Type:       stafiHubXLedgerTypes.TxTypeDealBondReported}
 
 	var txHash, txBts []byte
-	for i := 10; i < 15; i++ {
+	for i := 0; i < 5; i++ {
 		//use current seq
-		seq, err := poolClient.GetSequence(0, poolAddress)
+		seq, err := poolClient.GetSequence(height, poolAddress)
 		if err != nil {
 			h.log.Error("handleBondReportedEvent GetSequence failed",
 				"pool address", poolAddressStr,

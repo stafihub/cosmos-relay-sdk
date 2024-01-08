@@ -513,6 +513,7 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 			useSequence = sig.Sequence
 		} else {
 			if useSequence != sig.Sequence {
+				c.logger.Warn("useSequence != sig.Sequence", "useSequence", useSequence, "sig.Sequence", sig.Sequence)
 				continue
 			}
 		}
@@ -525,10 +526,12 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 
 		err = xAuthSigning.VerifySignature(sig.PubKey, signingData, sig.Data, c.Ctx().TxConfig.SignModeHandler(), txBuilder.GetTx())
 		if err != nil {
+			c.logger.Error("xAuthSigning.VerifySignature", "err", err.Error())
 			continue
 		}
 
 		if err := multisig.AddSignatureV2(multiSigData, sig, multiSigPub.GetPubKeys()); err != nil {
+			c.logger.Error("multisig.AddSignatureV2˝", "err", err.Error())
 			continue
 		}
 		correntSigNumber++
@@ -554,4 +557,97 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 	}
 	tendermintTx := tendermintTypes.Tx(txBytes)
 	return tendermintTx.Hash(), tendermintTx, nil
+}
+
+func (c *Client) VerifyMultiSigTxForTest(rawTx []byte, signatures [][]byte, threshold uint32, accountNumber uint64) (err error) {
+	done := core.UseSdkConfigContext(c.GetAccountPrefix())
+	defer done()
+	// multisigInfo, err := c.Ctx().Keyring.Key(c.Ctx().FromName)
+	// if err != nil {
+	// 	return
+	// }
+	// if multisigInfo.GetType() != keyring.TypeMulti {
+	// 	return nil, nil, fmt.Errorf("%q must be of type %s: %s",
+	// 		c.Ctx().FromName, keyring.TypeMulti, multisigInfo.GetType())
+	// }
+
+	// pubkey, err := multisigInfo.GetPubKey()
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	// multiSigPub := pubkey.(*kMultiSig.LegacyAminoPubKey)
+
+	tx, err := c.Ctx().TxConfig.TxJSONDecoder()(rawTx)
+	if err != nil {
+		return err
+	}
+	txBuilder, err := c.Ctx().TxConfig.WrapTxBuilder(tx)
+	if err != nil {
+		return err
+	}
+
+	willUseSigs := make([]signing.SignatureV2, 0)
+	for _, s := range signatures {
+		ss, err := c.Ctx().TxConfig.UnmarshalSignatureJSON(s)
+		if err != nil {
+			return err
+		}
+		willUseSigs = append(willUseSigs, ss...)
+	}
+
+	// multiSigData := multisig.NewMultisig(len(multiSigPub.PubKeys))
+	var useSequence uint64
+
+	correntSigNumber := uint32(0)
+	for i, sig := range willUseSigs {
+		if correntSigNumber == threshold {
+			break
+		}
+		//check sequence, we use first sig's sequence as flag
+		if i == 0 {
+			useSequence = sig.Sequence
+		} else {
+			if useSequence != sig.Sequence {
+				continue
+			}
+		}
+		//check sig
+		signingData := xAuthSigning.SignerData{
+			ChainID:       c.Ctx().ChainID,
+			AccountNumber: accountNumber,
+			Sequence:      useSequence,
+		}
+
+		err = xAuthSigning.VerifySignature(sig.PubKey, signingData, sig.Data, c.Ctx().TxConfig.SignModeHandler(), txBuilder.GetTx())
+		if err != nil {
+			return fmt.Errorf("xAuthSigning.VerifySignature %s", err.Error())
+		}
+
+		// if err := multisig.AddSignatureV2(multiSigData, sig, multiSigPub.GetPubKeys()); err != nil {
+		// 	continue
+		// }
+		correntSigNumber++
+	}
+
+	if correntSigNumber != threshold {
+		return fmt.Errorf("correct sig number:%d  threshold %d", correntSigNumber, threshold)
+	}
+	return nil
+
+	// sigV2 := signing.SignatureV2{
+	// 	PubKey:   multiSigPub,
+	// 	Data:     multiSigData,
+	// 	Sequence: useSequence,
+	// }
+
+	// err = txBuilder.SetSignatures(sigV2)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	// txBytes, err := c.Ctx().TxConfig.TxEncoder()(txBuilder.GetTx())
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	// tendermintTx := tendermintTypes.Tx(txBytes)
+	// return tendermintTx.Hash(), tendermintTx, nil
 }
