@@ -651,6 +651,8 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	c.logger.Trace("GetCurrentBLockAndTimestamp", "block", blockNumber, "timestamp", timestamp)
 	seconds := timestamp - targetTimestamp
 	if seconds < 0 {
 		// will wait if rpc node not sync to the latest block
@@ -754,6 +756,9 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 			}
 			if nextQueryBlockNumber >= afterBlockNumber {
 				nextQueryBlockNumber = afterBlockNumber - 1
+			}
+			if nextQueryBlockNumber > blockNumber {
+				nextQueryBlockNumber = blockNumber
 			}
 
 			block, err = c.QueryBlock(nextQueryBlockNumber)
