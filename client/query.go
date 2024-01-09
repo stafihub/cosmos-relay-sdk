@@ -686,48 +686,16 @@ func (c *Client) GetHeightByTimestamp(targetTimestamp int64) (int64, error) {
 				nextQueryBlockNumber = afterBlockNumber - 1
 			}
 
+			if nextQueryBlockNumber > blockNumber {
+				nextQueryBlockNumber = blockNumber
+			}
+
 			block, err = c.QueryBlock(nextQueryBlockNumber)
 			if err != nil {
 				return 0, err
 			}
 		}
 	}
-
-	// if block.Block.Header.Time.Unix() > targetTimestamp {
-	// 	afterBlockNumber = block.Block.Height
-	// 	for {
-	// 		c.logger.Trace("afterBlock", "block", afterBlockNumber)
-	// 		if afterBlockNumber <= 2 {
-	// 			return 1, nil
-	// 		}
-	// 		block, err := c.QueryBlock(afterBlockNumber - 1)
-	// 		if err != nil {
-	// 			return 0, err
-	// 		}
-	// 		if block.Block.Time.Unix() > targetTimestamp {
-	// 			afterBlockNumber = block.Block.Height
-	// 			continue
-	// 		}
-
-	// 		break
-	// 	}
-
-	// } else {
-	// 	preBlockNumber = block.Block.Height
-	// 	for {
-	// 		c.logger.Trace("preBlock", "block", preBlockNumber)
-	// 		block, err := c.QueryBlock(preBlockNumber + 1)
-	// 		if err != nil {
-	// 			return 0, err
-	// 		}
-	// 		if block.Block.Time.Unix() > targetTimestamp {
-	// 			afterBlockNumber = block.Block.Height
-	// 			break
-	// 		} else {
-	// 			preBlockNumber = block.Block.Height
-	// 		}
-	// 	}
-	// }
 
 	return afterBlockNumber, nil
 }

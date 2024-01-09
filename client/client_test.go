@@ -38,12 +38,12 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
-	// client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client", "carbon"))
-	client, err = hubClient.NewClient(nil, "", "", "chihuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
+	// client, err = hubClient.NewClient(nil, "", "", "chihuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://test-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub dev"))
 	// client, err = hubClient.NewClient(nil, "", "", "stafi", []string{"https://dev-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "ufis", []string{"https://public-rpc1.stafihub.io:443"}, log.NewLog("client", "stafihub main"))
@@ -59,7 +59,7 @@ func TestQueryBlock(t *testing.T) {
 	// if err!=nil{
 	// 	t.Fatal(err)
 	// }
-	txs, err := client.GetBlockTxsWithParseErrSkip(9431602)
+	txs, err := client.GetBlockTxsWithParseErrSkip(23170091)
 	if err != nil {
 		t.Fatal(err)
 	}

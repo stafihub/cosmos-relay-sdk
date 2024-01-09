@@ -3,6 +3,7 @@ package chain
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/cosmos/cosmos-sdk/types"
@@ -80,7 +81,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return h.sendActiveReportMsg(eventBondReported.ShotId, totalDelegateAmount.BigInt())
 	}
 
-	rewardCoins, height, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
+	rewardCoins, height, alreadySendReported, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
 		if err == ErrNoRewardNeedDelegate {
 			//will return ErrNoRewardNeedDelegate if no reward or reward of that height is less than now , we just activeReport
@@ -92,6 +93,43 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 				"err", err)
 			return err
 		}
+	}
+	if alreadySendReported {
+		_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
+		if err != nil {
+			h.log.Error("handleEraPoolUpdatedEvent GetLatestReDelegateTx failed",
+				"pool address", poolAddressStr,
+				"era", snap.Era,
+				"err", err)
+			return err
+		}
+		if redelegateTxHeight > height {
+			height = redelegateTxHeight
+		}
+		targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
+		if err != nil {
+			return err
+		}
+		// check tx type
+		_, unSignedTxType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
+			snap.Chunk.Unbond.BigInt(), h.minUnDelegateAmount.BigInt(), poolAddress, height, targetValidators, "memo")
+		if err != nil && err != hubClient.ErrNoMsgs {
+			return err
+		}
+		total := totalDelegateAmount
+		if err == nil && unSignedTxType == UnSignedTxTypeSkipAndWithdraw {
+			diff := new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt())
+			if diff.Sign() < 0 {
+				diff = big.NewInt(0)
+			}
+			// we should sub diff as we use eitherBondUnbond action to bondReport
+			total = total.Sub(types.NewIntFromBigInt(diff))
+			if total.IsNegative() {
+				total = types.ZeroInt()
+			}
+		}
+		h.log.Info("no need claim reward, already send reported", "pool", poolAddressStr, "era", snap.Era)
+		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
 
 	memo := GetMemo(snap.Era, TxTypeHandleBondReportedEvent)

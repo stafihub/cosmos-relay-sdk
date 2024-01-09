@@ -648,13 +648,13 @@ func combineSameAddress(outPuts []xBankTypes.Output) []xBankTypes.Output {
 // tx in bondReportedEvent of era-1 should use the old validator
 // tx in rValidatorUpdatedEvent of era -1 should replace old to new validator
 // tx in eraUpdatedEvent of this era should already use the new validator
-func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, error) {
+func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, bool, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
 	delAddress, err := types.AccAddressFromBech32(delegatorAddr)
 	if err != nil {
 		done()
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 	done()
 
@@ -664,11 +664,11 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
 		}, 1, 10, "desc")
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 
 	if len(txs.Txs) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
+		return nil, 0, false, ErrNoRewardNeedDelegate
 	}
 
 	valRewards := make(map[string]types.Coin)
@@ -679,11 +679,11 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 
 		decodeTx, err := c.GetTxConfig().TxDecoder()(txValue)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, false, err
 		}
 		memoTx, ok := decodeTx.(types.TxWithMemo)
 		if !ok {
-			return nil, 0, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
+			return nil, 0, false, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
 		}
 		memoInTx := memoTx.GetMemo()
 
@@ -692,6 +692,8 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			//return tx handleEraPoolUpdatedEvent height
 			retHeight = tx.Height - 1
 			fallthrough
+		case memoInTx == GetMemo(era, TxTypeHandleBondReportedEvent):
+			return nil, 0, true, nil
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
 			if strings.EqualFold(c.GetDenom(), "uatom") {
@@ -702,7 +704,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 
 			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, false, err
 			}
 
 			for _, r := range totalReward.Rewards {
@@ -737,7 +739,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 				}
 				totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 				if err != nil {
-					return nil, 0, err
+					return nil, 0, false, err
 				}
 				willRemoveVal := msg.ValidatorSrcAddress
 				willUseVal := msg.ValidatorDstAddress
@@ -767,10 +769,10 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 	}
 
 	if len(valRewards) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
+		return nil, 0, false, ErrNoRewardNeedDelegate
 	}
 
-	return valRewards, retHeight, nil
+	return valRewards, retHeight, false, nil
 }
 
 func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.TxResponse, int64, error) {

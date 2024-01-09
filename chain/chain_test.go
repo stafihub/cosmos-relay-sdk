@@ -79,19 +79,18 @@ func TestChainInitialize(t *testing.T) {
 
 func TestGetRewardToBeDelegated(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client"))
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client"))
+	client, err := hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	if err != nil {
 		panic(err)
 	}
-	for i := 5519471; i > 0; i-- {
-		t.Log("---------------", i)
-		rewardMap, height, err := chain.GetRewardToBeDelegated(client, "cosmos13jd2vn5wt8h6slj0gcv05lasgpkwpm26n04y75", uint32(i))
-		if err != nil {
-			t.Log(err)
-		} else {
-			t.Log(rewardMap, height)
-		}
+	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19662)
+	if err != nil {
+		t.Log(err, send)
+	} else {
+		t.Log(rewardMap, height, send)
 	}
+
 }
 
 func TestGetLatestRedelegateTx(t *testing.T) {
