@@ -79,7 +79,7 @@ func TestQueryBlock(t *testing.T) {
 
 func TestClient_GetHeightByEra(t *testing.T) {
 	initClient()
-	height, err := client.GetHeightByEra(19561, 86700, 0)
+	height, err := client.GetHeightByEra(19664, 86700, 0)
 	assert.NoError(t, err)
 	t.Log(height)
 }

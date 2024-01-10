@@ -84,7 +84,7 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19662)
+	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "stafi1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19664)
 	if err != nil {
 		t.Log(err, send)
 	} else {

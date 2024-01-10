@@ -36,11 +36,12 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"error", err)
 		return err
 	}
+	h.log.Debug("1")
 
 	if isIcaPool {
 		return h.dealIcaPoolBondReportedEvent(poolClient, eventBondReported)
 	}
-
+	h.log.Debug("2")
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
@@ -50,17 +51,19 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			"err", err)
 		return err
 	}
+	h.log.Debug("3")
 	poolAddressStr := poolAddress.String()
 	done()
 	threshold, err := h.conn.GetPoolThreshold(poolAddressStr)
 	if err != nil {
 		return err
 	}
+	h.log.Debug("4")
 	subKeyName, err := h.conn.GetPoolSubkeyName(poolAddressStr)
 	if err != nil {
 		return err
 	}
-
+	h.log.Debug("5")
 	//we just activeReport if total delegate amount <= 10000
 	totalDelegateAmount := types.NewInt(0)
 	delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
@@ -76,11 +79,12 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			totalDelegateAmount = totalDelegateAmount.Add(dele.Balance.Amount)
 		}
 	}
+	h.log.Debug("6")
 	if totalDelegateAmount.LTE(types.NewInt(1e4)) {
 		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, totalDelegateAmount.BigInt())
 	}
-
+	h.log.Debug("7")
 	rewardCoins, height, alreadySendReported, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
 		if err == ErrNoRewardNeedDelegate {
@@ -94,6 +98,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			return err
 		}
 	}
+	h.log.Debug("8")
 	if alreadySendReported {
 		_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
 		if err != nil {
@@ -131,7 +136,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		h.log.Info("no need claim reward, already send reported", "pool", poolAddressStr, "era", snap.Era)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
-
+	h.log.Debug("9")
 	memo := GetMemo(snap.Era, TxTypeHandleBondReportedEvent)
 	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTxWithReward(poolClient, poolAddress, height, rewardCoins, memo)
 	if err != nil {
@@ -161,7 +166,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			return err
 		}
 	}
-
+	h.log.Debug("10")
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
 		SnapshotId: eventBondReported.ShotId,
