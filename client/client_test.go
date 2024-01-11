@@ -38,7 +38,7 @@ func initClient() {
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc1.stafi.io:443"}, log.NewLog("client", "cosmos"))
 	logrus.SetLevel(logrus.TraceLevel)
-	client, err = hubClient.NewClient(nil, "", "", "iris", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
+	client, err = hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/601083a01bf2f40729c5f75e62042208"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "cosmos", []string{"https://rpc.cosmos.network:443"}, log.NewLog("client", "cosmos"))
 	// client, err = hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client", "carbon"))
@@ -343,11 +343,12 @@ func TestAddress(t *testing.T) {
 
 func TestClient_QueryDelegations(t *testing.T) {
 	initClient()
-	addr, err := types.AccAddressFromBech32("swth10j3yjvgzm7r22us3tqz49gkgtkj0rt3pg6w8z7")
+	addr, err := types.AccAddressFromBech32("iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2")
 	assert.NoError(t, err)
-	height := int64(38306830)
+	height := int64(17980843)
 	res, err := client.QueryDelegations(addr, height)
 	assert.NoError(t, err)
+	return
 	// t.Log(res.String())
 	for i, d := range res.GetDelegationResponses() {
 		t.Log(i, d.Balance.Amount)
