@@ -673,6 +673,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 
 	valRewards := make(map[string]types.Coin)
 	retHeight := int64(0)
+	alreadyDealBondReportedEvent := false
 	for i := len(txs.Txs) - 1; i >= 0; i-- {
 		tx := txs.Txs[i]
 		txValue := tx.Tx.Value
@@ -693,7 +694,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			retHeight = tx.Height - 1
 			fallthrough
 		case memoInTx == GetMemo(era, TxTypeHandleBondReportedEvent):
-			return nil, 0, true, nil
+			alreadyDealBondReportedEvent = true
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
 			if strings.EqualFold(c.GetDenom(), "uatom") {
@@ -772,7 +773,7 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 		return nil, 0, false, ErrNoRewardNeedDelegate
 	}
 
-	return valRewards, retHeight, false, nil
+	return valRewards, retHeight, alreadyDealBondReportedEvent, nil
 }
 
 func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.TxResponse, int64, error) {

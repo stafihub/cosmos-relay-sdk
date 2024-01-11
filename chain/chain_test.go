@@ -84,7 +84,7 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "stafi1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19664)
+	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19665)
 	if err != nil {
 		t.Log(err, send)
 	} else {
@@ -95,11 +95,15 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 
 func TestGetLatestRedelegateTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("cosmos"))
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("cosmos"))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	client, err := hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	if err != nil {
 		panic(err)
 	}
-	tx, height, err := chain.GetLatestReDelegateTx(client, "cosmos13jd2vn5wt8h6slj0gcv05lasgpkwpm26n04y75")
+	tx, height, err := chain.GetLatestReDelegateTx(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2")
 	if err != nil {
 		t.Fatal(err)
 	}
