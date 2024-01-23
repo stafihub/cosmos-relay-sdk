@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stafihub/cosmos-relay-sdk/chain"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/config"
@@ -114,13 +115,15 @@ func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc4.stafi.io:443"}, log.NewLog("client"))
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://public-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"}, log.NewLog("client"))
+	client, err := hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client"))
+	logrus.SetLevel(logrus.TraceLevel)
+	// client, err := hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for {
 		go func(tt *testing.T) {
-			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
+			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-31")
 			if err != nil {
 				tt.Log(err)
 			}

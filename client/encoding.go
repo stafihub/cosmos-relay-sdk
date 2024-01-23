@@ -26,6 +26,7 @@ import (
 	interChain "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts"
 	ibcTransfer "github.com/cosmos/ibc-go/v7/modules/apps/transfer"
 	ibcCore "github.com/cosmos/ibc-go/v7/modules/core"
+	tendermintClient "github.com/cosmos/ibc-go/v7/modules/light-clients/07-tendermint"
 )
 
 // EncodingConfig specifies the concrete encoding types to use for a given app.
@@ -61,6 +62,7 @@ func MakeEncodingConfig() EncodingConfig {
 		ibcTransfer.AppModuleBasic{},
 		ibcCore.AppModuleBasic{},
 		interChain.AppModuleBasic{},
+		tendermintClient.AppModuleBasic{},
 	)
 	moduleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	moduleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)
