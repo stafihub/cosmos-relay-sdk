@@ -325,14 +325,14 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		ToAddress:   poolAddressStr,
 		Amount:      types.NewCoins(*rewardBalanceRes.Balance),
 	}
-
+	factor := uint32(2)
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
 		stafiHubXLedgerTypes.TxTypeReserved,
-		0,
+		factor,
 		[]types.Msg{&msg})
 	if err != nil {
 		return err
@@ -344,7 +344,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
 		TxType: stafiHubXLedgerTypes.TxTypeReserved,
-		Factor: 0,
+		Factor: factor,
 		Msgs:   msgs,
 	}
 
@@ -380,7 +380,6 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		return err
 	}
 
-	factor := uint32(1)
 	interchainTx, err = stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
