@@ -26,8 +26,6 @@ import (
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
 
-var cosmosV9Height = int64(14470501)
-
 const (
 	UnSignedTxTypeUnSpecified             = 0
 	UnSignedTxTypeBondEqualUnbondWithdraw = 1
@@ -697,11 +695,6 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			fallthrough // should go next case logic
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
-			if strings.EqualFold(c.GetDenom(), "uatom") {
-				if height < cosmosV9Height {
-					continue
-				}
-			}
 
 			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 			if err != nil {
@@ -733,11 +726,6 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 					continue
 				}
 				height := tx.Height - 1
-				if strings.EqualFold(c.GetDenom(), "uatom") {
-					if height < cosmosV9Height {
-						continue
-					}
-				}
 				totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 				if err != nil {
 					return nil, 0, false, err
