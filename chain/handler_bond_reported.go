@@ -98,6 +98,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			return err
 		}
 	}
+
 	h.log.Debug("8")
 	if alreadySendReported {
 		_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
@@ -137,6 +138,17 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
 	h.log.Debug("9")
+	if strings.EqualFold(poolClient.GetDenom(), "uiris") && snap.Era == 19704 {
+		if len(rewardCoins) == 0 {
+			return fmt.Errorf("rewardCoind empty")
+		}
+		averageReward := (144935 * 1e6) / len(rewardCoins)
+		averageRewardCoin := types.NewCoin("uiris", types.NewIntFromUint64(uint64(averageReward)))
+		for val, rewardCoin := range rewardCoins {
+			rewardCoins[val] = rewardCoin.Add(averageRewardCoin)
+		}
+	}
+
 	memo := GetMemo(snap.Era, TxTypeHandleBondReportedEvent)
 	unSignedTx, totalDeleAmount, err := GetDelegateRewardUnsignedTxWithReward(poolClient, poolAddress, height, rewardCoins, memo)
 	if err != nil {

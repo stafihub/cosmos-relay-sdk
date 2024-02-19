@@ -689,12 +689,12 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 		memoInTx := memoTx.GetMemo()
 
 		switch {
+		case memoInTx == GetMemo(era, TxTypeHandleBondReportedEvent):
+			alreadyDealBondReportedEvent = true
 		case memoInTx == GetMemo(era, TxTypeHandleEraPoolUpdatedEvent):
 			//return tx handleEraPoolUpdatedEvent height
 			retHeight = tx.Height - 1
-			fallthrough
-		case memoInTx == GetMemo(era, TxTypeHandleBondReportedEvent):
-			alreadyDealBondReportedEvent = true
+			fallthrough // should go next case logic
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
 			if strings.EqualFold(c.GetDenom(), "uatom") {

@@ -82,10 +82,12 @@ func TestGetRewardToBeDelegated(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client"))
 	client, err := hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
+	// client, err := hubClient.NewClient(nil, "", "", "chihuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
 	if err != nil {
 		panic(err)
 	}
-	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19665)
+	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19704)
+	// rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "chihuahua1v39a888ktx6v6py9pc5lppglqgtxyfuvtkxagr", 19703)
 	if err != nil {
 		t.Log(err, send)
 	} else {
