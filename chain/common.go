@@ -17,7 +17,7 @@ import (
 	xBankTypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	xDistriTypes "github.com/cosmos/cosmos-sdk/x/distribution/types"
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	icatypes "github.com/cosmos/ibc-go/v5/modules/apps/27-interchain-accounts/types"
+	icatypes "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts/types"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/core"
 	"github.com/stafihub/rtoken-relay-core/common/log"
@@ -25,8 +25,6 @@ import (
 	stafiHubXLedgerTypes "github.com/stafihub/stafihub/x/ledger/types"
 	stafiHubXRValidatorTypes "github.com/stafihub/stafihub/x/rvalidator/types"
 )
-
-var cosmosV9Height = int64(14470501)
 
 const (
 	UnSignedTxTypeUnSpecified             = 0
@@ -731,13 +729,13 @@ func combineSameAddress(outPuts []xBankTypes.Output) []xBankTypes.Output {
 // tx in bondReportedEvent of era-1 should use the old validator
 // tx in rValidatorUpdatedEvent of era -1 should replace old to new validator
 // tx in eraUpdatedEvent of this era should already use the new validator
-func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, error) {
+func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint32) (map[string]types.Coin, int64, bool, error) {
 	done := core.UseSdkConfigContext(c.GetAccountPrefix())
 	moduleAddressStr := xAuthTypes.NewModuleAddress(xDistriTypes.ModuleName).String()
 	delAddress, err := types.AccAddressFromBech32(delegatorAddr)
 	if err != nil {
 		done()
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 	done()
 
@@ -747,45 +745,43 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 			fmt.Sprintf("transfer.sender='%s'", moduleAddressStr),
 		}, 1, 10, "desc")
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, false, err
 	}
 
 	if len(txs.Txs) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
+		return nil, 0, false, ErrNoRewardNeedDelegate
 	}
 
 	valRewards := make(map[string]types.Coin)
 	retHeight := int64(0)
+	alreadyDealBondReportedEvent := false
 	for i := len(txs.Txs) - 1; i >= 0; i-- {
 		tx := txs.Txs[i]
 		txValue := tx.Tx.Value
 
 		decodeTx, err := c.GetTxConfig().TxDecoder()(txValue)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, false, err
 		}
 		memoTx, ok := decodeTx.(types.TxWithMemo)
 		if !ok {
-			return nil, 0, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
+			return nil, 0, false, fmt.Errorf("tx is not type TxWithMemo, txhash: %s", txs.Txs[0].TxHash)
 		}
 		memoInTx := memoTx.GetMemo()
 
 		switch {
+		case memoInTx == GetMemo(era, TxTypeHandleBondReportedEvent):
+			alreadyDealBondReportedEvent = true
 		case memoInTx == GetMemo(era, TxTypeHandleEraPoolUpdatedEvent):
 			//return tx handleEraPoolUpdatedEvent height
 			retHeight = tx.Height - 1
-			fallthrough
+			fallthrough // should go next case logic
 		case memoInTx == GetMemo(era-1, TxTypeHandleBondReportedEvent):
 			height := tx.Height - 1
-			if strings.EqualFold(c.GetDenom(), "uatom") {
-				if height < cosmosV9Height {
-					continue
-				}
-			}
 
 			totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, false, err
 			}
 
 			for _, r := range totalReward.Rewards {
@@ -813,14 +809,9 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 					continue
 				}
 				height := tx.Height - 1
-				if strings.EqualFold(c.GetDenom(), "uatom") {
-					if height < cosmosV9Height {
-						continue
-					}
-				}
 				totalReward, err := c.QueryDelegationTotalRewards(delAddress, height)
 				if err != nil {
-					return nil, 0, err
+					return nil, 0, false, err
 				}
 				willRemoveVal := msg.ValidatorSrcAddress
 				willUseVal := msg.ValidatorDstAddress
@@ -850,10 +841,10 @@ func GetRewardToBeDelegated(c *hubClient.Client, delegatorAddr string, era uint3
 	}
 
 	if len(valRewards) == 0 {
-		return nil, 0, ErrNoRewardNeedDelegate
+		return nil, 0, false, ErrNoRewardNeedDelegate
 	}
 
-	return valRewards, retHeight, nil
+	return valRewards, retHeight, alreadyDealBondReportedEvent, nil
 }
 
 func GetLatestReDelegateTx(c *hubClient.Client, delegatorAddr string) (*types.TxResponse, int64, error) {
@@ -915,6 +906,9 @@ func GetLatestDealEraUpdatedTx(c *hubClient.Client, dstChannelId string) (*types
 
 func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *WrapUnsignedTx,
 	m *core.Message, txHash, txBts []byte, poolAddress types.AccAddress, unSignedTxType int) error {
+	if len(txBts) == 0 {
+		return fmt.Errorf("tx empty, pool: %s", poolAddress.String())
+	}
 
 	h.log.Debug("checkAndSend", "txBts", hex.EncodeToString(txBts))
 	txHashHexStr := hex.EncodeToString(txHash)

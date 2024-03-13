@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stafihub/cosmos-relay-sdk/chain"
 	hubClient "github.com/stafihub/cosmos-relay-sdk/client"
 	"github.com/stafihub/rtoken-relay-core/common/config"
@@ -78,39 +79,33 @@ func TestChainInitialize(t *testing.T) {
 }
 
 func TestGetRewardToBeDelegated(t *testing.T) {
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"}, log.NewLog("client"))
+	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("client"))
+	client, err := hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
+	// client, err := hubClient.NewClient(nil, "", "", "chihuahua", []string{"https://chihuahua-private-rpc1.stafihub.io:443"}, log.NewLog("client", "chihuahua"))
 	if err != nil {
 		panic(err)
 	}
-
-	tx, err := client.QueryTxByHash("098626784177BDBD401745D4345A5B2532D4730A65D44DEEDB7D95838DC4E66E")
-
+	rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2", 19704)
+	// rewardMap, height, send, err := chain.GetRewardToBeDelegated(client, "chihuahua1v39a888ktx6v6py9pc5lppglqgtxyfuvtkxagr", 19703)
 	if err != nil {
-		t.Fatal(err)
+		t.Log(err, send)
+	} else {
+		t.Log(rewardMap, height, send)
 	}
-
-	memo, msgs, err := chain.ParseMemoAndMsgs(client, tx.Tx.GetValue())
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(memo, msgs)
-
-	txs, err := client.GetBlockTxsWithParseErrSkip(int64(101790))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Log(txs)
-
 }
 
 func TestGetLatestRedelegateTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("cosmos"))
+	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"http://127.0.0.1:16657"}, log.NewLog("cosmos"))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	client, err := hubClient.NewClient(nil, "", "", "iaa", []string{"https://iris-rpc1.stafihub.io:443"}, log.NewLog("client", "cosmos"))
 	if err != nil {
 		panic(err)
 	}
-	tx, height, err := chain.GetLatestReDelegateTx(client, "cosmos13jd2vn5wt8h6slj0gcv05lasgpkwpm26n04y75")
+	tx, height, err := chain.GetLatestReDelegateTx(client, "iaa1wvpzras7ac3rm3mw96djhe9t8dh6uq6tc76mr2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,13 +116,15 @@ func TestGetLatestDealEraUpdatedTx(t *testing.T) {
 	// client, err:= hubClient.NewClient(nil, "", "", "cosmos", []string{"https://test-cosmos-rpc1.stafihub.io:443"})
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://cosmos-rpc4.stafi.io:443"}, log.NewLog("client"))
 	// client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://public-rpc1.stafihub.io:443"})
-	client, err := hubClient.NewClient(nil, "", "", "cosmos", []string{"https://mainnet-rpc.wetez.io:443/cosmos/tendermint/v1/af815794bc73d0152cc333eaf32e4982"}, log.NewLog("client"))
+	client, err := hubClient.NewClient(nil, "", "", "swth", []string{"https://tm-api.carbon.network:443"}, log.NewLog("client"))
+	logrus.SetLevel(logrus.TraceLevel)
+	// client, err := hubClient.NewClient(nil, "", "", "swth", []string{"https://carbon-rpc.stafi.io:443"}, log.NewLog("client"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for {
 		go func(tt *testing.T) {
-			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-371")
+			_, height, err := chain.GetLatestDealEraUpdatedTx(client, "channel-31")
 			if err != nil {
 				tt.Log(err)
 			}

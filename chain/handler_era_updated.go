@@ -110,7 +110,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		Type:       stafiHubXLedgerTypes.TxTypeDealEraUpdated}
 
 	var txHash, txBts []byte
-	for i := 10; i < 15; i++ {
+	for i := 15; i < 20; i++ {
 		//use current seq
 		seq, err := poolClient.GetSequence(0, poolAddress)
 		if err != nil {
@@ -254,7 +254,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		}
 	}
 
-	factor := uint32(2)
+	factor := uint32(1)
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,

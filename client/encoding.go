@@ -9,7 +9,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/auth/tx"
-	"github.com/cosmos/cosmos-sdk/x/authz/module"
+	authz "github.com/cosmos/cosmos-sdk/x/authz/module"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	"github.com/cosmos/cosmos-sdk/x/capability"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
@@ -24,9 +24,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/upgrade"
 	ledger "github.com/stafihub/stafihub/x/ledger"
 
-	interChain "github.com/cosmos/ibc-go/v5/modules/apps/27-interchain-accounts"
-	ibcTransfer "github.com/cosmos/ibc-go/v5/modules/apps/transfer"
-	ibcCore "github.com/cosmos/ibc-go/v5/modules/core"
+	interChain "github.com/cosmos/ibc-go/v7/modules/apps/27-interchain-accounts"
+	ibcTransfer "github.com/cosmos/ibc-go/v7/modules/apps/transfer"
+	ibcCore "github.com/cosmos/ibc-go/v7/modules/core"
+	tendermintClient "github.com/cosmos/ibc-go/v7/modules/light-clients/07-tendermint"
 )
 
 // EncodingConfig specifies the concrete encoding types to use for a given app.
@@ -64,6 +65,7 @@ func MakeEncodingConfig() EncodingConfig {
 		interChain.AppModuleBasic{},
 		// stafi
 		ledger.AppModuleBasic{},
+		tendermintClient.AppModuleBasic{},
 	)
 	moduleBasics.RegisterLegacyAminoCodec(encodingConfig.Amino)
 	moduleBasics.RegisterInterfaces(encodingConfig.InterfaceRegistry)

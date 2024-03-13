@@ -3,6 +3,7 @@ package chain
 import (
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/cosmos/cosmos-sdk/types"
@@ -39,7 +40,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	if isIcaPool {
 		return h.dealIcaPoolBondReportedEvent(poolClient, eventBondReported)
 	}
-
 	done := core.UseSdkConfigContext(poolClient.GetAccountPrefix())
 	poolAddress, err := types.AccAddressFromBech32(snap.GetPool())
 	if err != nil {
@@ -59,7 +59,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 	if err != nil {
 		return err
 	}
-
 	//we just activeReport if total delegate amount <= 10000
 	totalDelegateAmount := types.NewInt(0)
 	delegationsRes, err := poolClient.QueryDelegations(poolAddress, 0)
@@ -79,8 +78,7 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 		h.log.Info("no need claim reward", "pool", poolAddressStr, "era", snap.Era)
 		return h.sendActiveReportMsg(eventBondReported.ShotId, totalDelegateAmount.BigInt())
 	}
-
-	rewardCoins, height, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
+	rewardCoins, height, alreadySendReported, err := GetRewardToBeDelegated(poolClient, poolAddressStr, snap.Era)
 	if err != nil {
 		if err == ErrNoRewardNeedDelegate {
 			//will return ErrNoRewardNeedDelegate if no reward or reward of that height is less than now , we just activeReport
@@ -92,6 +90,44 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 				"err", err)
 			return err
 		}
+	}
+
+	if alreadySendReported {
+		_, redelegateTxHeight, err := GetLatestReDelegateTx(poolClient, poolAddressStr)
+		if err != nil {
+			h.log.Error("handleEraPoolUpdatedEvent GetLatestReDelegateTx failed",
+				"pool address", poolAddressStr,
+				"era", snap.Era,
+				"err", err)
+			return err
+		}
+		if redelegateTxHeight > height {
+			height = redelegateTxHeight
+		}
+		targetValidators, err := h.conn.GetPoolTargetValidators(poolAddressStr)
+		if err != nil {
+			return err
+		}
+		// check tx type
+		_, unSignedTxType, err := GetBondUnbondWithdrawUnsignedTxWithTargets(poolClient, snap.Chunk.Bond.BigInt(),
+			snap.Chunk.Unbond.BigInt(), h.minUnDelegateAmount.BigInt(), poolAddress, height, targetValidators, "memo")
+		if err != nil && err != hubClient.ErrNoMsgs {
+			return err
+		}
+		total := totalDelegateAmount
+		if err == nil && unSignedTxType == UnSignedTxTypeSkipAndWithdraw {
+			diff := new(big.Int).Sub(snap.Chunk.Unbond.BigInt(), snap.Chunk.Bond.BigInt())
+			if diff.Sign() < 0 {
+				diff = big.NewInt(0)
+			}
+			// we should sub diff as we use eitherBondUnbond action to bondReport
+			total = total.Sub(types.NewIntFromBigInt(diff))
+			if total.IsNegative() {
+				total = types.ZeroInt()
+			}
+		}
+		h.log.Info("no need claim reward, already send reported", "pool", poolAddressStr, "era", snap.Era)
+		return h.sendActiveReportMsg(eventBondReported.ShotId, total.BigInt())
 	}
 
 	memo := GetMemo(snap.Era, TxTypeHandleBondReportedEvent)
@@ -123,7 +159,6 @@ func (h *Handler) handleBondReportedEvent(m *core.Message) error {
 			return err
 		}
 	}
-
 	wrapUnsignedTx := WrapUnsignedTx{
 		UnsignedTx: unSignedTx,
 		SnapshotId: eventBondReported.ShotId,
@@ -298,14 +333,14 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		ToAddress:   poolAddressStr,
 		Amount:      types.NewCoins(*rewardBalanceRes.Balance),
 	}
-
+	factor := uint32(2)
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
 		poolAddressStr,
 		snap.Era,
 		stafiHubXLedgerTypes.TxTypeWithdrawAddressSend,
-		0,
+		factor,
 		[]types.Msg{&msg})
 	if err != nil {
 		return err
@@ -317,7 +352,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		Pool:   poolAddressStr,
 		Era:    snap.Era,
 		TxType: stafiHubXLedgerTypes.TxTypeWithdrawAddressSend,
-		Factor: 0,
+		Factor: factor,
 		Msgs:   msgs,
 	}
 
@@ -428,7 +463,6 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		return err
 	}
 
-	factor := uint32(2)
 	interchainTx, err = stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,

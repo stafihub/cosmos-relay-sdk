@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	tendermintTypes "github.com/cometbft/cometbft/types"
 	clientTx "github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	kMultiSig "github.com/cosmos/cosmos-sdk/crypto/keys/multisig"
@@ -17,7 +18,6 @@ import (
 	xStakingTypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/spf13/cobra"
 	"github.com/stafihub/rtoken-relay-core/common/core"
-	tendermintTypes "github.com/tendermint/tendermint/types"
 )
 
 var ErrNoMsgs = errors.New("no tx msgs")
@@ -403,7 +403,10 @@ func (c *Client) GenMultiSigRawDeleRewardTxWithRewardsWithMemo(delAddr types.Acc
 // c.clientCtx.FromAddress must be multi sig address,no need sequence
 func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
@@ -421,7 +424,10 @@ func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 // c.clientCtx.FromAddress must be multi sig address,no need sequence
 func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byte, error) {
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
@@ -443,7 +449,10 @@ func (c *Client) SignMultiSigRawTxWithSeq(sequence uint64, rawTx []byte, fromSub
 	defer done()
 
 	cmd := cobra.Command{}
-	txf := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	txf, err := clientTx.NewFactoryCLI(c.Ctx(), cmd.Flags())
+	if err != nil {
+		return nil, err
+	}
 	txf = txf.WithSequence(sequence).
 		WithAccountNumber(c.accountNumber).
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON) //multi sig need this mod
@@ -476,11 +485,11 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 			c.Ctx().FromName, keyring.TypeMulti, multisigInfo.GetType())
 	}
 
-	pubkey, err := multisigInfo.GetPubKey()
+	multisigPubkey, err := multisigInfo.GetPubKey()
 	if err != nil {
-		return nil, nil, err
+		return
 	}
-	multiSigPub := pubkey.(*kMultiSig.LegacyAminoPubKey)
+	multiSigPub := multisigPubkey.(*kMultiSig.LegacyAminoPubKey)
 
 	tx, err := c.Ctx().TxConfig.TxJSONDecoder()(rawTx)
 	if err != nil {
@@ -503,6 +512,7 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 	multiSigData := multisig.NewMultisig(len(multiSigPub.PubKeys))
 	var useSequence uint64
 
+	errStr := ""
 	correntSigNumber := uint32(0)
 	for i, sig := range willUseSigs {
 		if correntSigNumber == threshold {
@@ -519,26 +529,28 @@ func (c *Client) AssembleMultiSigTx(rawTx []byte, signatures [][]byte, threshold
 		}
 		//check sig
 		signingData := xAuthSigning.SignerData{
+			Address:       c.Ctx().FromAddress.String(),
 			ChainID:       c.Ctx().ChainID,
 			AccountNumber: c.accountNumber,
 			Sequence:      useSequence,
+			PubKey:        sig.PubKey,
 		}
 
 		err = xAuthSigning.VerifySignature(sig.PubKey, signingData, sig.Data, c.Ctx().TxConfig.SignModeHandler(), txBuilder.GetTx())
 		if err != nil {
-			c.logger.Error("xAuthSigning.VerifySignature", "err", err.Error())
+			errStr += fmt.Sprintf("xAuthSigning.VerifySignature err: %s", err.Error())
 			continue
 		}
 
 		if err := multisig.AddSignatureV2(multiSigData, sig, multiSigPub.GetPubKeys()); err != nil {
-			c.logger.Error("multisig.AddSignatureV2˝", "err", err.Error())
+			errStr += fmt.Sprintf("multisig.AddSignatureV2 err: %s", err.Error())
 			continue
 		}
 		correntSigNumber++
 	}
 
 	if correntSigNumber != threshold {
-		return nil, nil, fmt.Errorf("correct sig number:%d  threshold %d", correntSigNumber, threshold)
+		return nil, nil, fmt.Errorf("correct sig number:%d  threshold %d, err: %s", correntSigNumber, threshold, errStr)
 	}
 
 	sigV2 := signing.SignatureV2{
