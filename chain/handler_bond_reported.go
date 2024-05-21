@@ -333,7 +333,7 @@ func (h *Handler) dealIcaPoolBondReportedEvent(poolClient *hubClient.Client, eve
 		ToAddress:   poolAddressStr,
 		Amount:      types.NewCoins(*rewardBalanceRes.Balance),
 	}
-	factor := uint32(2)
+	factor := uint32(7)
 	interchainTx, err := stafiHubXLedgerTypes.NewInterchainTxProposal(
 		types.AccAddress{},
 		snap.Denom,
