@@ -411,7 +411,7 @@ func (c *Client) GenMultiSigRawTx(msgs ...types.Msg) ([]byte, error) {
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
 		WithGasPrices(c.gasPrice).
-		WithGas(1600000).
+		WithGas(1900000).
 		WithSimulateAndExecute(true)
 
 	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
@@ -432,7 +432,7 @@ func (c *Client) GenMultiSigRawTxWithMemo(memo string, msgs ...types.Msg) ([]byt
 		WithSignMode(signing.SignMode_SIGN_MODE_LEGACY_AMINO_JSON). //multi sig need this mod
 		WithGasAdjustment(1.5).
 		WithGasPrices(c.gasPrice).
-		WithGas(1600000).
+		WithGas(1900000).
 		WithSimulateAndExecute(true)
 
 	txBuilderRaw, err := txf.BuildUnsignedTx(msgs...)
