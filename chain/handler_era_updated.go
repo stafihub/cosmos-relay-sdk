@@ -110,7 +110,7 @@ func (h *Handler) handleEraPoolUpdatedEvent(m *core.Message) error {
 		Type:       stafiHubXLedgerTypes.TxTypeDealEraUpdated}
 
 	var txHash, txBts []byte
-	for i := 15; i < 20; i++ {
+	for i := 25; i < 30; i++ {
 		//use current seq
 		seq, err := poolClient.GetSequence(0, poolAddress)
 		if err != nil {
