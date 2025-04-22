@@ -135,9 +135,9 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond, minUnDelegateAmount *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedTxType int, err error) {
 
-	// done := core.UseSdkConfigContext(client.GetAccountPrefix())
-	// poolAddrStr := poolAddr.String()
-	// done()
+	done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	poolAddrStr := poolAddr.String()
+	done()
 
 	var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
 	deleRes, err = client.QueryDelegations(poolAddr, 0)
