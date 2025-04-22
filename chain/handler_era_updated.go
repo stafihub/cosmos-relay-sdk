@@ -294,5 +294,7 @@ func (h *Handler) dealIcaEraPoolUpdatedEvent(poolClient *hubClient.Client, event
 		return fmt.Errorf("interchainTx proposalId: %s, txType: %s status: %s", interchainTx.PropId, interchainTx.TxType.String(), status.String())
 	}
 
+	return fmt.Errorf("unbond all success")
+
 	return h.sendBondReportMsg(eventEraPoolUpdated.ShotId, stafiHubXLedgerTypes.BothBondUnbond)
 }

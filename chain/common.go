@@ -393,6 +393,43 @@ func GetBondUnbondWithdrawMsgsWithTargets(client *hubClient.Client, bond, unbond
 	poolAddrStr := poolAddr.String()
 	done()
 
+	var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
+	deleRes, err = client.QueryDelegations(poolAddr, 0)
+	if err != nil {
+		return nil, 0, fmt.Errorf("QueryDelegations failed: %s", err)
+	}
+
+	//choose validators to be undelegated
+	choosedVals := make([]types.ValAddress, 0)
+	choosedAmount := make(map[string]types.Int)
+
+	for _, dele := range deleRes.GetDelegationResponses() {
+		//filter old validator,we say validator is old if amount < 3 uatom
+		if dele.GetBalance().Amount.LT(types.NewInt(3)) {
+			continue
+		}
+
+		done := core.UseSdkConfigContext(client.GetAccountPrefix())
+		valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
+		if err != nil {
+			done()
+			return nil, 0, err
+		}
+
+		choosedVals = append(choosedVals, valAddr)
+		choosedAmount[valAddr.String()] = dele.GetBalance().Amount
+		done()
+	}
+
+	msgs, err = client.GenUnDelegateWithdrawMsgs(
+		poolAddr,
+		choosedVals,
+		choosedAmount,
+		nil)
+	unSignedType = -1
+
+	return
+
 	switch bond.Cmp(unbond) {
 	case 0:
 		// return errnoMsgs if no delegation before
