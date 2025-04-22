@@ -135,9 +135,46 @@ func GetValidatorUpdateProposalId(content []byte, index uint8) []byte {
 func GetBondUnbondWithdrawUnsignedTxWithTargets(client *hubClient.Client, bond, unbond, minUnDelegateAmount *big.Int,
 	poolAddr types.AccAddress, height int64, targets []types.ValAddress, memo string) (unSignedTx []byte, unSignedTxType int, err error) {
 
-	done := core.UseSdkConfigContext(client.GetAccountPrefix())
-	poolAddrStr := poolAddr.String()
-	done()
+	// done := core.UseSdkConfigContext(client.GetAccountPrefix())
+	// poolAddrStr := poolAddr.String()
+	// done()
+
+	var deleRes *xStakingTypes.QueryDelegatorDelegationsResponse
+	deleRes, err = client.QueryDelegations(poolAddr, 0)
+	if err != nil {
+		return nil, 0, fmt.Errorf("QueryDelegations failed: %s", err)
+	}
+
+	//choose validators to be undelegated
+	choosedVals := make([]types.ValAddress, 0)
+	choosedAmount := make(map[string]types.Int)
+
+	for _, dele := range deleRes.GetDelegationResponses() {
+		//filter old validator,we say validator is old if amount < 3 uatom
+		if dele.GetBalance().Amount.LT(types.NewInt(3)) {
+			continue
+		}
+
+		done := core.UseSdkConfigContext(client.GetAccountPrefix())
+		valAddr, err := types.ValAddressFromBech32(dele.GetDelegation().ValidatorAddress)
+		if err != nil {
+			done()
+			return nil, 0, err
+		}
+
+		choosedVals = append(choosedVals, valAddr)
+		choosedAmount[valAddr.String()] = dele.GetBalance().Amount
+		done()
+	}
+	unSignedTx, err = client.GenMultiSigRawUnDelegateWithdrawTxWithMemo(
+		poolAddr,
+		choosedVals,
+		choosedAmount,
+		nil,
+		memo)
+	unSignedTxType = UnSignedTxTypeUnDelegateAndWithdraw
+
+	return
 
 	switch bond.Cmp(unbond) {
 	case 0:
@@ -970,6 +1007,9 @@ func (h *Handler) checkAndSend(poolClient *hubClient.Client, wrappedUnSignedTx *
 		//report to stafihub
 		switch wrappedUnSignedTx.Type {
 		case stafiHubXLedgerTypes.TxTypeDealEraUpdated: //bond/unbond/claim
+
+			return fmt.Errorf("tx unbond success")
+
 			switch unSignedTxType {
 			case UnSignedTxTypeSkipAndWithdraw:
 				return h.sendBondReportMsg(wrappedUnSignedTx.SnapshotId, stafiHubXLedgerTypes.EitherBondUnbond)
